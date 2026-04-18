@@ -1,45 +1,50 @@
 /**
- * Fetch a food image from Unsplash based on the recipe title.
- * Uses Unsplash Source (no API key needed) — redirects to a random
- * relevant photo. Falls back gracefully if unavailable.
+ * Fetch a food image for a recipe title.
+ * Uses multiple free image sources as fallbacks.
  */
 export async function fetchRecipeImage(title: string): Promise<string | null> {
-  // Clean up the title for a search query
   const query = title
-    .replace(/\(.*?\)/g, "")  // Remove parenthetical notes like "(GF)"
+    .replace(/\(.*?\)/g, "")
     .replace(/GF|gluten.free/gi, "")
     .trim()
     .split(/\s+/)
-    .slice(0, 4) // Max 4 words for better results
+    .slice(0, 4)
     .join(" ")
 
   if (!query) return null
 
+  // Try Pexels (free, no auth needed for their search page images)
   try {
-    // Unsplash Source URL — returns a random photo matching the query
-    // The 800x600 size is good for recipe cards
-    const url = `https://source.unsplash.com/800x600/?${encodeURIComponent(query + " food")}`
-
-    // Follow the redirect to get the actual image URL
-    const res = await fetch(url, { redirect: "follow" })
-    if (res.ok && res.url && !res.url.includes("source.unsplash.com")) {
-      return res.url
-    }
-
-    // Fallback: try Unsplash search API (no key needed for small usage)
-    const searchUrl = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + " food")}&per_page=1`
-    const searchRes = await fetch(searchUrl, {
-      headers: { "Accept": "application/json" },
+    const searchQuery = encodeURIComponent(query + " food dish")
+    // Use Unsplash's featured endpoint which still works
+    const url = `https://unsplash.com/napi/search/photos?query=${searchQuery}&per_page=1&orientation=landscape`
+    const res = await fetch(url, {
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "BreslinMealPlanner/1.0",
+      },
     })
-    if (searchRes.ok) {
-      const data = await searchRes.json()
-      if (data.results?.[0]?.urls?.regular) {
-        return data.results[0].urls.regular
+    if (res.ok) {
+      const data = await res.json()
+      const photo = data.results?.[0]
+      if (photo?.urls?.regular) {
+        // Resize to 800px wide for performance
+        return photo.urls.regular.replace(/w=\d+/, "w=800")
       }
     }
-  } catch {
-    // Silently fail — recipe just won't have an image
-  }
+  } catch { /* try next */ }
+
+  // Fallback: use a deterministic placeholder from picsum based on the title
+  try {
+    // Generate a stable seed from the title so the same recipe always gets the same image
+    let hash = 0
+    for (let i = 0; i < query.length; i++) {
+      hash = ((hash << 5) - hash) + query.charCodeAt(i)
+      hash |= 0
+    }
+    const seed = Math.abs(hash) % 1000
+    return `https://picsum.photos/seed/${seed}/800/600`
+  } catch { /* give up */ }
 
   return null
 }
