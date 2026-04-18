@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { GFBadge } from "@/components/GFBadge"
+import { MealContext } from "@/components/MealContext"
 import { RecipeRating } from "@/components/RecipeRating"
 import { AISLE_LABELS } from "@/types"
 import type { Recipe, AisleCategory } from "@/types"
@@ -148,7 +149,10 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* Ratings */}
+      {/* Meal context — shows sides and meal rating */}
+      <MealContext recipeId={recipe.id} />
+
+      {/* Individual ratings */}
       <RecipeRating recipeId={recipe.id} />
 
       {/* Source */}
