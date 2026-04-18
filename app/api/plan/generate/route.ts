@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient } from "@/lib/anthropic"
+import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
 import { getRecipes } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
@@ -53,7 +53,7 @@ Only fill empty slots. Skip days that are already planned.`,
   if (content.type !== "text") return NextResponse.json({ error: "Unexpected response" }, { status: 500 })
 
   try {
-    const result = JSON.parse(content.text)
+    const result = JSON.parse(cleanJson(content.text))
     return NextResponse.json(result)
   } catch {
     return NextResponse.json({ error: "Could not generate plan" }, { status: 422 })

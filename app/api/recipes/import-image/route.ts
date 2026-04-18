@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient } from "@/lib/anthropic"
+import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
 
 export const dynamic = "force-dynamic"
 
@@ -61,7 +61,7 @@ Be thorough with the is_gluten_free check — flag flour, bread, pasta, soy sauc
   }
 
   try {
-    const recipe = JSON.parse(content.text)
+    const recipe = JSON.parse(cleanJson(content.text))
     return NextResponse.json(recipe)
   } catch {
     return NextResponse.json({ error: "Could not extract recipe from that image" }, { status: 422 })

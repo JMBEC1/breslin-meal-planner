@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient } from "@/lib/anthropic"
+import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
 import { getRecipes, getAllRatings } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
@@ -59,7 +59,7 @@ Return ONLY valid JSON (no markdown fences):
       const content = message.content[0]
       if (content.type === "text") {
         try {
-          const result = JSON.parse(content.text)
+          const result = JSON.parse(cleanJson(content.text))
           result.mode = "stored"
           return NextResponse.json(result)
         } catch { /* fall through to random */ }
@@ -155,7 +155,7 @@ For stored recipes, use their actual recipe_id. For new recipes, set recipe_id t
   if (content.type !== "text") return NextResponse.json({ error: "Unexpected response" }, { status: 500 })
 
   try {
-    const result = JSON.parse(content.text)
+    const result = JSON.parse(cleanJson(content.text))
     result.mode = mode
     return NextResponse.json(result)
   } catch {

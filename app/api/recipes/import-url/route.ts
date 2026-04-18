@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient } from "@/lib/anthropic"
+import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
 
 export const dynamic = "force-dynamic"
 
@@ -77,7 +77,7 @@ ${text}`,
   }
 
   try {
-    const recipe = JSON.parse(content.text)
+    const recipe = JSON.parse(cleanJson(content.text))
     recipe.source_url = url
     return NextResponse.json(recipe)
   } catch {

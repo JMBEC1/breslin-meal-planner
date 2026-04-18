@@ -9,3 +9,8 @@ export function getAnthropicClient(): Anthropic | null {
   }
   return _client
 }
+
+/** Strip markdown code fences that Claude sometimes wraps around JSON */
+export function cleanJson(text: string): string {
+  return text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim()
+}
