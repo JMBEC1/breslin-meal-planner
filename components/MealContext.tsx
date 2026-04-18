@@ -74,14 +74,13 @@ function InlineRecipe({ recipe }: { recipe: Recipe }) {
         <div className="bg-white rounded-xl p-5 mb-4 shadow-sm">
           <h4 className="text-base font-semibold text-meal-charcoal mb-3">Instructions</h4>
           <ol className="space-y-3">
-            {recipe.instructions
-              .split(/(?=\d+\.\s)/)
+            {(recipe.instructions.match(/\d{1,3}\.\s[^]*?(?=\d{1,3}\.\s|$)/g) || [recipe.instructions])
               .map((step: string) => step.trim())
               .filter(Boolean)
               .map((step: string, i: number) => (
                 <li key={i} className="flex gap-3 text-sm text-meal-charcoal">
                   <span className="text-meal-sage font-bold shrink-0 w-6 text-right">{i + 1}.</span>
-                  <span>{step.replace(/^\d+\.\s*/, "")}</span>
+                  <span>{step.replace(/^\d{1,3}\.\s*/, "")}</span>
                 </li>
               ))}
           </ol>

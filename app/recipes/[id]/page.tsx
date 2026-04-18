@@ -136,14 +136,13 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         <div className="bg-white rounded-xl p-5 mb-6 shadow-sm">
           <h2 className="text-lg font-semibold text-meal-charcoal mb-3">Instructions</h2>
           <ol className="space-y-3">
-            {recipe.instructions
-              .split(/(?=\d+\.\s)/)
-              .map((step) => step.trim())
+            {(recipe.instructions.match(/\d{1,3}\.\s[^]*?(?=\d{1,3}\.\s|$)/g) || [recipe.instructions])
+              .map((step: string) => step.trim())
               .filter(Boolean)
-              .map((step, i) => (
+              .map((step: string, i: number) => (
                 <li key={i} className="flex gap-3 text-sm text-meal-charcoal">
                   <span className="text-meal-sage font-bold shrink-0 w-6 text-right">{i + 1}.</span>
-                  <span>{step.replace(/^\d+\.\s*/, "")}</span>
+                  <span>{step.replace(/^\d{1,3}\.\s*/, "")}</span>
                 </li>
               ))}
           </ol>
