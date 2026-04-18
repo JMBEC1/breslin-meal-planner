@@ -521,37 +521,44 @@ export default function PlanPage() {
                   return (
                     <div
                       key={mealType}
-                      className={`rounded-lg p-3 min-h-[80px] text-sm cursor-pointer transition-colors ${
+                      className={`rounded-lg overflow-hidden text-sm cursor-pointer transition-all ${
                         slot?.recipe_id || slot?.custom_text
                           ? "bg-white shadow-sm hover:shadow-md"
-                          : "bg-meal-warm/50 hover:bg-meal-warm border-2 border-dashed border-meal-warm"
+                          : "bg-meal-warm/50 hover:bg-meal-warm border-2 border-dashed border-meal-warm min-h-[80px] p-3"
                       }`}
                       onClick={() => {
                         if (slot?.recipe_id) router.push(`/recipes/${slot.recipe_id}`)
                         else if (!slot?.custom_text) openPicker(day, mealType)
                       }}
                     >
-                      <span className="text-[10px] font-semibold text-meal-muted uppercase">
-                        {mealType}
-                      </span>
-                      {recipe ? (
-                        <div className="mt-1">
-                          <p className="font-medium text-meal-charcoal text-xs line-clamp-2 hover:text-meal-sage">{recipe.title}</p>
-                          {!recipe.is_gluten_free && (
-                            <span className="text-[8px] font-semibold text-meal-amber mt-1 inline-block">GLUTEN</span>
-                          )}
+                      {recipe?.image_url && (
+                        <div className="h-16 w-full">
+                          <img src={recipe.image_url} alt="" className="w-full h-full object-cover" />
                         </div>
-                      ) : slot?.custom_text ? (
-                        <p className="mt-1 font-medium text-meal-charcoal text-xs">{slot.custom_text}</p>
-                      ) : (
-                        <p className="mt-1 text-meal-muted text-xs">+ Add</p>
                       )}
-                      {(slot?.recipe_id || slot?.custom_text) && (
-                        <button onClick={(e) => { e.stopPropagation(); clearSlot(day, mealType) }}
-                          className="text-[10px] text-meal-muted hover:text-red-500 mt-1">
-                          clear
-                        </button>
-                      )}
+                      <div className={recipe?.image_url ? "p-2" : (slot?.recipe_id || slot?.custom_text) ? "p-3" : ""}>
+                        <span className="text-[10px] font-semibold text-meal-muted uppercase">
+                          {mealType}
+                        </span>
+                        {recipe ? (
+                          <div className="mt-0.5">
+                            <p className="font-medium text-meal-charcoal text-xs line-clamp-2 hover:text-meal-sage">{recipe.title}</p>
+                            {!recipe.is_gluten_free && (
+                              <span className="text-[8px] font-semibold text-meal-amber mt-0.5 inline-block">GLUTEN</span>
+                            )}
+                          </div>
+                        ) : slot?.custom_text ? (
+                          <p className="mt-0.5 font-medium text-meal-charcoal text-xs">{slot.custom_text}</p>
+                        ) : (
+                          <p className="mt-1 text-meal-muted text-xs">+ Add</p>
+                        )}
+                        {(slot?.recipe_id || slot?.custom_text) && (
+                          <button onClick={(e) => { e.stopPropagation(); clearSlot(day, mealType) }}
+                            className="text-[10px] text-meal-muted hover:text-red-500 mt-0.5">
+                            clear
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
@@ -573,20 +580,33 @@ export default function PlanPage() {
                     return (
                       <div
                         key={mealType}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-meal-cream cursor-pointer"
+                        className="flex items-center gap-3 p-3 rounded-lg bg-meal-cream cursor-pointer overflow-hidden"
                         onClick={() => {
                           if (slot?.recipe_id) router.push(`/recipes/${slot.recipe_id}`)
                           else if (!slot?.custom_text) openPicker(day, mealType)
                         }}
                       >
-                        <span className={`text-[10px] font-semibold uppercase w-12 ${
-                          mealType === "lunch" ? "text-meal-sky" : "text-meal-coral"
-                        }`}>
-                          {mealType}
-                        </span>
-                        <span className="flex-1 text-sm text-meal-charcoal">
-                          {recipe ? recipe.title : slot?.custom_text || "Tap to add"}
-                        </span>
+                        {recipe?.image_url ? (
+                          <img src={recipe.image_url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                        ) : (
+                          <span className={`text-[10px] font-semibold uppercase w-12 text-center shrink-0 ${
+                            mealType === "lunch" ? "text-meal-sky" : "text-meal-coral"
+                          }`}>
+                            {mealType}
+                          </span>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          {recipe?.image_url && (
+                            <span className={`text-[10px] font-semibold uppercase ${
+                              mealType === "lunch" ? "text-meal-sky" : "text-meal-coral"
+                            }`}>
+                              {mealType}
+                            </span>
+                          )}
+                          <span className="block text-sm text-meal-charcoal truncate">
+                            {recipe ? recipe.title : slot?.custom_text || "Tap to add"}
+                          </span>
+                        </div>
                         {(slot?.recipe_id || slot?.custom_text) && (
                           <button onClick={(e) => { e.stopPropagation(); clearSlot(day, mealType) }}
                             className="text-xs text-meal-muted hover:text-red-500">
