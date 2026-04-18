@@ -474,7 +474,7 @@ export default function PlanPage() {
               className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-white cursor-pointer hover:shadow-md transition-shadow" : "bg-meal-warm/50"}`}
               onClick={() => {
                 if (recipe) router.push(`/recipes/${recipe.id}`)
-                else if (!customText) openPicker(day, mealType)
+                else openPicker(day, mealType)
               }}
             >
               {/* Image area */}
@@ -493,17 +493,28 @@ export default function PlanPage() {
                     {sublabel}
                   </span>
                 </div>
-                {/* Swap button */}
+                {/* Swap + Side buttons */}
                 {hasContent && (
-                  <button
-                    className="absolute bottom-2 right-2 bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
-                    onClick={(e) => { e.stopPropagation(); openPicker(day, mealType) }}
-                    title="Swap meal"
-                  >
-                    <svg className="w-3.5 h-3.5 text-meal-charcoal" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
-                    </svg>
-                  </button>
+                  <div className="absolute bottom-2 right-2 flex gap-1">
+                    <button
+                      className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
+                      onClick={(e) => { e.stopPropagation(); openPicker(day, mealType, true) }}
+                      title="Add side"
+                    >
+                      <svg className="w-3.5 h-3.5 text-meal-sage" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    </button>
+                    <button
+                      className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
+                      onClick={(e) => { e.stopPropagation(); openPicker(day, mealType) }}
+                      title="Swap meal"
+                    >
+                      <svg className="w-3.5 h-3.5 text-meal-charcoal" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
+                      </svg>
+                    </button>
+                  </div>
                 )}
                 {recipe && !recipe.is_gluten_free && (
                   <div className="absolute top-2 right-2">
