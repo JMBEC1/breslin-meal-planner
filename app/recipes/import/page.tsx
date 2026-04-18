@@ -165,7 +165,27 @@ export default function ImportRecipePage() {
               <span className="font-medium">Title:</span> {preview.title as string}
             </div>
             <div>
-              <span className="font-medium">Category:</span> {preview.category as string}
+              <span className="font-medium block mb-1.5">Category:</span>
+              <div className="flex gap-2">
+                {([
+                  { value: "school-lunch", label: "School Lunch", colour: "bg-meal-sky" },
+                  { value: "dinner", label: "Dinner", colour: "bg-meal-coral" },
+                  { value: "fancy", label: "Special Occasion", colour: "bg-meal-plum" },
+                ] as const).map((cat) => (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setPreview((prev) => prev ? { ...prev, category: cat.value } : prev)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      preview.category === cat.value
+                        ? `${cat.colour} text-white`
+                        : "bg-meal-warm text-meal-charcoal hover:opacity-80"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <span className="font-medium">Gluten Free:</span> {(preview.is_gluten_free as boolean) ? "Yes" : "No"}
