@@ -60,7 +60,7 @@ export default function PlanPage() {
   const [recipes, setRecipes] = useState<Record<number, Recipe>>({})
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType } | null>(null)
+  const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType; addSide?: boolean } | null>(null)
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
 
@@ -91,9 +91,11 @@ export default function PlanPage() {
     const data = await res.json()
     if (data?.meals) {
       setMeals(data.meals)
-      const ids = data.meals
-        .map((m: MealSlot) => m.recipe_id)
-        .filter((id: number | null): id is number => id != null)
+      const ids: number[] = []
+      for (const m of data.meals as MealSlot[]) {
+        if (m.recipe_id) ids.push(m.recipe_id)
+        if (m.side_ids) ids.push(...m.side_ids)
+      }
       if (ids.length) {
         const recipeMap: Record<number, Recipe> = {}
         await Promise.all(ids.map(async (id: number) => {
@@ -124,11 +126,32 @@ export default function PlanPage() {
   }
 
   function assignRecipe(day: DayOfWeek, mealType: MealType, recipeId: number | null, text: string | null) {
-    const existing = meals.filter((m) => !(m.day === day && m.meal_type === mealType))
-    const updated = [...existing, { day, meal_type: mealType, recipe_id: recipeId, custom_text: text }]
-    savePlan(updated)
+    if (pickerOpen?.addSide && recipeId) {
+      // Adding a side to an existing slot
+      const updated = meals.map((m) => {
+        if (m.day === day && m.meal_type === mealType) {
+          return { ...m, side_ids: [...(m.side_ids || []), recipeId] }
+        }
+        return m
+      })
+      savePlan(updated)
+    } else {
+      const existing = meals.filter((m) => !(m.day === day && m.meal_type === mealType))
+      const updated = [...existing, { day, meal_type: mealType, recipe_id: recipeId, custom_text: text }]
+      savePlan(updated)
+    }
     setPickerOpen(null)
     setCustomText("")
+  }
+
+  function removeSide(day: DayOfWeek, mealType: MealType, sideId: number) {
+    const updated = meals.map((m) => {
+      if (m.day === day && m.meal_type === mealType) {
+        return { ...m, side_ids: (m.side_ids || []).filter((id) => id !== sideId) }
+      }
+      return m
+    })
+    savePlan(updated)
   }
 
   function clearSlot(day: DayOfWeek, mealType: MealType) {
@@ -362,8 +385,8 @@ export default function PlanPage() {
     setInspiration("")
   }
 
-  async function openPicker(day: DayOfWeek, mealType: MealType) {
-    setPickerOpen({ day, meal_type: mealType })
+  async function openPicker(day: DayOfWeek, mealType: MealType, addSide?: boolean) {
+    setPickerOpen({ day, meal_type: mealType, addSide })
     if (allRecipes.length === 0) {
       const res = await fetch("/api/recipes")
       if (res.ok) setAllRecipes(await res.json())
@@ -552,11 +575,37 @@ export default function PlanPage() {
                         ) : (
                           <p className="mt-1 text-meal-muted text-xs">+ Add</p>
                         )}
+                        {/* Sides */}
+                        {slot?.side_ids && slot.side_ids.length > 0 && (
+                          <div className="mt-1 pt-1 border-t border-meal-cream">
+                            {slot.side_ids.map((sideId) => {
+                              const side = recipes[sideId]
+                              return (
+                                <div key={sideId} className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[9px] text-meal-sage">+</span>
+                                  <span className="text-[10px] text-meal-muted truncate">{side?.title || `Recipe #${sideId}`}</span>
+                                  <button onClick={(e) => { e.stopPropagation(); removeSide(day, mealType, sideId) }}
+                                    className="text-meal-muted hover:text-red-500 ml-auto shrink-0">
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                         {(slot?.recipe_id || slot?.custom_text) && (
-                          <button onClick={(e) => { e.stopPropagation(); clearSlot(day, mealType) }}
-                            className="text-[10px] text-meal-muted hover:text-red-500 mt-0.5">
-                            clear
-                          </button>
+                          <div className="flex gap-2 mt-0.5">
+                            <button onClick={(e) => { e.stopPropagation(); openPicker(day, mealType, true) }}
+                              className="text-[10px] text-meal-sage hover:text-meal-sageHover">
+                              + side
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); clearSlot(day, mealType) }}
+                              className="text-[10px] text-meal-muted hover:text-red-500">
+                              clear
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -606,15 +655,33 @@ export default function PlanPage() {
                           <span className="block text-sm text-meal-charcoal truncate">
                             {recipe ? recipe.title : slot?.custom_text || "Tap to add"}
                           </span>
+                          {/* Sides */}
+                          {slot?.side_ids && slot.side_ids.length > 0 && (
+                            <div className="mt-0.5">
+                              {slot.side_ids.map((sideId) => (
+                                <span key={sideId} className="text-[10px] text-meal-sage mr-2">
+                                  + {recipes[sideId]?.title || `#${sideId}`}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {(slot?.recipe_id || slot?.custom_text) && (
-                          <button onClick={(e) => { e.stopPropagation(); clearSlot(day, mealType) }}
-                            className="text-xs text-meal-muted hover:text-red-500">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {(slot?.recipe_id || slot?.custom_text) && (
+                            <button onClick={(e) => { e.stopPropagation(); openPicker(day, mealType, true) }}
+                              className="text-[10px] text-meal-sage font-medium px-1">
+                              +side
+                            </button>
+                          )}
+                          {(slot?.recipe_id || slot?.custom_text) && (
+                            <button onClick={(e) => { e.stopPropagation(); clearSlot(day, mealType) }}
+                              className="text-xs text-meal-muted hover:text-red-500">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )
                   })}
@@ -984,7 +1051,7 @@ export default function PlanPage() {
           <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80vh] overflow-auto p-5"
             onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-meal-charcoal mb-4">
-              {DAY_LABELS[pickerOpen.day]} {pickerOpen.meal_type}
+              {pickerOpen.addSide ? "Add Side — " : ""}{DAY_LABELS[pickerOpen.day]} {pickerOpen.meal_type}
             </h3>
 
             {/* Custom text */}

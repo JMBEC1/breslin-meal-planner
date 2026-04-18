@@ -95,6 +95,7 @@ export interface MealSlot {
   meal_type: MealType
   recipe_id: number | null
   custom_text: string | null
+  side_ids?: number[]
 }
 
 export interface MealPlan {

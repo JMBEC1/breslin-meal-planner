@@ -6,10 +6,12 @@ import type { Ingredient, MealSlot } from "@/types"
 export const dynamic = "force-dynamic"
 
 async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: string }) {
-  const recipeIds = plan.meals
-    .map((m) => m.recipe_id)
-    .filter((id): id is number => id != null)
-  const uniqueIds = [...new Set(recipeIds)]
+  const allIds: number[] = []
+  for (const m of plan.meals) {
+    if (m.recipe_id) allIds.push(m.recipe_id)
+    if (m.side_ids) allIds.push(...m.side_ids)
+  }
+  const uniqueIds = [...new Set(allIds)]
 
   const allIngredients: { ingredient: Ingredient; recipeId: number }[] = []
   for (const id of uniqueIds) {
