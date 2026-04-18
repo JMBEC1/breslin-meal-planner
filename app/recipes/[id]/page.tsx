@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { GFBadge } from "@/components/GFBadge"
+import { RecipeRating } from "@/components/RecipeRating"
 import { CATEGORY_LABELS, AISLE_LABELS } from "@/types"
 import type { Recipe, RecipeCategory, AisleCategory } from "@/types"
 
@@ -122,6 +123,9 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
           <p className="text-meal-muted">{recipe.notes}</p>
         </div>
       )}
+
+      {/* Ratings */}
+      <RecipeRating recipeId={recipe.id} />
 
       {/* Source */}
       {recipe.source_url && (

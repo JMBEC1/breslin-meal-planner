@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 100" fill="none">
+  <!-- Fork -->
+  <g transform="translate(2, 5)">
+    <rect x="24" y="52" width="6" height="43" rx="3" fill="#7C9A6E"/>
+    <rect x="12" y="8" width="4" height="34" rx="2" fill="#7C9A6E"/>
+    <rect x="21" y="4" width="4" height="38" rx="2" fill="#7C9A6E"/>
+    <rect x="30" y="4" width="4" height="38" rx="2" fill="#7C9A6E"/>
+    <rect x="39" y="8" width="4" height="34" rx="2" fill="#7C9A6E"/>
+    <path d="M12 42 Q12 52 24 52 L30 52 Q42 52 42 42" stroke="#7C9A6E" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </g>
+  <!-- Spoon -->
+  <g transform="translate(30, 5)">
+    <rect x="14" y="52" width="6" height="43" rx="3" fill="#E8836B"/>
+    <ellipse cx="17" cy="22" rx="16" ry="20" fill="#E8836B"/>
+    <ellipse cx="17" cy="20" rx="11" ry="14" fill="#FFFAF5"/>
+  </g>
+</svg>

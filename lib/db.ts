@@ -57,6 +57,15 @@ function getSqlite(): Database.Database {
       active          INTEGER NOT NULL DEFAULT 1,
       created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
+    CREATE TABLE IF NOT EXISTS ratings (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipe_id       INTEGER NOT NULL,
+      person          TEXT    NOT NULL,
+      enjoyment       INTEGER NOT NULL DEFAULT 0,
+      ease_of_cooking INTEGER NOT NULL DEFAULT 0,
+      created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE(recipe_id, person)
+    );
   `)
   return _sqlite
 }
@@ -121,6 +130,17 @@ async function getNeon(): Promise<any> {
       frequency       INT  NOT NULL DEFAULT 0,
       active          INT  NOT NULL DEFAULT 1,
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS ratings (
+      id              SERIAL PRIMARY KEY,
+      recipe_id       INT  NOT NULL,
+      person          TEXT NOT NULL,
+      enjoyment       INT  NOT NULL DEFAULT 0,
+      ease_of_cooking INT  NOT NULL DEFAULT 0,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(recipe_id, person)
     )
   `
   _neon = sql
@@ -471,4 +491,50 @@ export async function incrementStapleFrequency(name: string) {
     const db = getSqlite()
     db.prepare("UPDATE staples SET frequency = frequency + 1 WHERE name = ?").run(name)
   }
+}
+
+// ── Ratings ───────────────────────────────────────────────────────────────
+
+interface RatingRow {
+  id: number; recipe_id: number; person: string
+  enjoyment: number; ease_of_cooking: number; created_at: string
+}
+
+export async function getRatings(recipeId: number): Promise<RatingRow[]> {
+  if (USE_NEON) {
+    const sql = await getNeon()
+    return await sql`SELECT * FROM ratings WHERE recipe_id = ${recipeId}` as RatingRow[]
+  }
+  const db = getSqlite()
+  return db.prepare("SELECT * FROM ratings WHERE recipe_id = ?").all(recipeId) as RatingRow[]
+}
+
+export async function getAllRatings(): Promise<RatingRow[]> {
+  if (USE_NEON) {
+    const sql = await getNeon()
+    return await sql`SELECT * FROM ratings` as RatingRow[]
+  }
+  const db = getSqlite()
+  return db.prepare("SELECT * FROM ratings").all() as RatingRow[]
+}
+
+export async function upsertRating(recipeId: number, person: string, enjoyment: number, easeOfCooking: number) {
+  if (USE_NEON) {
+    const sql = await getNeon()
+    await sql`
+      INSERT INTO ratings (recipe_id, person, enjoyment, ease_of_cooking)
+      VALUES (${recipeId}, ${person}, ${enjoyment}, ${easeOfCooking})
+      ON CONFLICT (recipe_id, person) DO UPDATE SET
+        enjoyment = EXCLUDED.enjoyment, ease_of_cooking = EXCLUDED.ease_of_cooking
+    `
+  } else {
+    const db = getSqlite()
+    db.prepare(`
+      INSERT INTO ratings (recipe_id, person, enjoyment, ease_of_cooking)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(recipe_id, person) DO UPDATE SET
+        enjoyment = excluded.enjoyment, ease_of_cooking = excluded.ease_of_cooking
+    `).run(recipeId, person, enjoyment, easeOfCooking)
+  }
+  return getRatings(recipeId)
 }

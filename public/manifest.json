@@ -1,6 +1,6 @@
 {
-  "name": "Breslin Meal Planner",
-  "short_name": "Meals",
+  "name": "The Breslin Fork & Spoon",
+  "short_name": "Fork & Spoon",
   "description": "Weekly meal planning for the Breslin family",
   "start_url": "/",
   "display": "standalone",

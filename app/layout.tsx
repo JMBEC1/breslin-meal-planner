@@ -10,7 +10,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Breslin Meal Planner",
+  title: "The Breslin Fork & Spoon",
   description: "Weekly meal planning for the Breslin family",
   manifest: "/manifest.json",
 }

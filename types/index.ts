@@ -125,6 +125,26 @@ export interface ShoppingList {
   updated_at: string
 }
 
+// ── Ratings ─────────────────────────────────────────────────────────────────
+
+export const FAMILY_MEMBERS = ["James", "Laura", "Jude", "Etta"] as const
+export type FamilyMember = (typeof FAMILY_MEMBERS)[number]
+
+export interface Rating {
+  id: number
+  recipe_id: number
+  person: FamilyMember
+  enjoyment: number       // 1-5 stars
+  ease_of_cooking: number // 1-5 stars (same for whole family, but stored per-person for simplicity)
+  created_at: string
+}
+
+export interface RecipeRatingSummary {
+  avg_enjoyment: Record<FamilyMember, number | null>
+  avg_ease: number | null
+  ratings: Rating[]
+}
+
 // ── Staples ─────────────────────────────────────────────────────────────────
 
 export interface Staple {

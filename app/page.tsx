@@ -36,6 +36,10 @@ export default function PlanPage() {
   const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType } | null>(null)
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
+  const [dinnerGenOpen, setDinnerGenOpen] = useState(false)
+  const [dinnerMode, setDinnerMode] = useState<"stored" | "internet" | "mix">("mix")
+  const [dinnerResults, setDinnerResults] = useState<{ recipe_id: number | null; title: string; is_gluten_free?: boolean; servings?: number; leftovers?: boolean; description?: string; source_hint?: string }[] | null>(null)
+  const [generatingDinners, setGeneratingDinners] = useState(false)
 
   const fetchPlan = useCallback(async () => {
     setLoading(true)
@@ -115,6 +119,63 @@ export default function PlanPage() {
     setGenerating(false)
   }
 
+  async function handleGenerateDinners() {
+    setGeneratingDinners(true)
+    setDinnerResults(null)
+    const res = await fetch("/api/plan/generate-dinners", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: dinnerMode }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setDinnerResults(data.dinners || [])
+    }
+    setGeneratingDinners(false)
+  }
+
+  async function applyDinnerResults() {
+    if (!dinnerResults) return
+    const updated = meals.filter((m) => m.meal_type !== "dinner")
+    const dinnerDays = DAYS.slice() // Mon-Sun
+    let dayIndex = 0
+    for (const dinner of dinnerResults) {
+      if (dayIndex >= 7) break
+      const day = dinnerDays[dayIndex]
+      updated.push({
+        day,
+        meal_type: "dinner" as MealType,
+        recipe_id: dinner.recipe_id || null,
+        custom_text: dinner.recipe_id ? null : dinner.title,
+      })
+      // If big meal with leftovers, mark next day too
+      if (dinner.leftovers && dayIndex + 1 < 7) {
+        dayIndex++
+        updated.push({
+          day: dinnerDays[dayIndex],
+          meal_type: "dinner" as MealType,
+          recipe_id: null,
+          custom_text: `Leftovers: ${dinner.title}`,
+        })
+      }
+      dayIndex++
+    }
+    await savePlan(updated)
+    // Fetch any new recipe details
+    const newIds = dinnerResults.filter((d) => d.recipe_id).map((d) => d.recipe_id!)
+    for (const id of newIds) {
+      if (!recipes[id]) {
+        const r = await fetch(`/api/recipes/${id}`)
+        if (r.ok) {
+          const recipe = await r.json()
+          setRecipes((prev) => ({ ...prev, [id]: recipe }))
+        }
+      }
+    }
+    setDinnerGenOpen(false)
+    setDinnerResults(null)
+  }
+
   async function openPicker(day: DayOfWeek, mealType: MealType) {
     setPickerOpen({ day, meal_type: mealType })
     if (allRecipes.length === 0) {
@@ -145,13 +206,19 @@ export default function PlanPage() {
             </button>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setDinnerGenOpen(true)}
+            className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/80 transition-colors"
+          >
+            Generate Dinners
+          </button>
           <button
             onClick={handleGenerate}
             disabled={generating}
             className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
           >
-            {generating ? "Generating..." : "AI Generate Plan"}
+            {generating ? "Generating..." : "AI Fill All"}
           </button>
           <Link
             href={`/shopping?week=${weekStart}`}
@@ -253,6 +320,109 @@ export default function PlanPage() {
             ))}
           </div>
         </>
+      )}
+
+      {/* Dinner Generator Modal */}
+      {dinnerGenOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
+          onClick={() => { setDinnerGenOpen(false); setDinnerResults(null) }}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[85vh] overflow-auto p-5"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-meal-charcoal mb-2">Generate 7 Dinners</h3>
+            <p className="text-sm text-meal-muted mb-4">
+              Pick a source and we&apos;ll fill your week with dinners. Big meals auto-add a leftovers night.
+            </p>
+
+            {/* Mode selector */}
+            <div className="flex gap-1 bg-meal-warm rounded-lg p-1 mb-4">
+              {([
+                { value: "stored" as const, label: "Our Recipes" },
+                { value: "mix" as const, label: "Mix" },
+                { value: "internet" as const, label: "Internet" },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setDinnerMode(opt.value); setDinnerResults(null) }}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
+                    dinnerMode === opt.value ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-xs text-meal-muted mb-4">
+              {dinnerMode === "stored" && "Picks from your saved recipes, favouring higher-rated ones."}
+              {dinnerMode === "mix" && "A mix of your favourites and new AI-suggested recipes."}
+              {dinnerMode === "internet" && "AI suggests top-rated recipes from popular food sites."}
+            </p>
+
+            {/* Generate button */}
+            {!dinnerResults && (
+              <button
+                onClick={handleGenerateDinners}
+                disabled={generatingDinners}
+                className="w-full py-3 rounded-lg bg-meal-coral text-white font-medium hover:bg-meal-coral/80 transition-colors disabled:opacity-50"
+              >
+                {generatingDinners ? "Generating..." : "Generate Dinners"}
+              </button>
+            )}
+
+            {/* Loading */}
+            {generatingDinners && (
+              <div className="text-center py-6">
+                <div className="inline-block w-6 h-6 border-2 border-meal-coral border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-meal-muted mt-2">Finding the best meals...</p>
+              </div>
+            )}
+
+            {/* Results */}
+            {dinnerResults && !generatingDinners && (
+              <div>
+                <div className="space-y-2 mb-4">
+                  {dinnerResults.map((d, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-meal-cream">
+                      <span className="text-sm font-bold text-meal-coral w-6 shrink-0">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-meal-charcoal">{d.title}</p>
+                        {d.description && <p className="text-xs text-meal-muted mt-0.5">{d.description}</p>}
+                        <div className="flex items-center gap-2 mt-1">
+                          {d.is_gluten_free ? (
+                            <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                          )}
+                          {d.leftovers && (
+                            <span className="text-[10px] font-semibold text-meal-plum">+ Leftovers night</span>
+                          )}
+                          {d.source_hint && (
+                            <span className="text-[10px] text-meal-muted">{d.source_hint}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setDinnerResults(null) }}
+                    className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium"
+                  >
+                    Re-roll
+                  </button>
+                  <button
+                    onClick={applyDinnerResults}
+                    className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
+                  >
+                    Use These Dinners
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Recipe Picker Modal */}
