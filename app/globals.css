@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #FFFAF5;
+  color: #2D2D2D;
+}
+
+/* Warm scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FFFAF5;
+}
+::-webkit-scrollbar-thumb {
+  background: #CAC2B8;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8B8178;
+}
+
+/* Smooth transitions */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Bottom nav safe area on iOS */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
