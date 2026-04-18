@@ -40,7 +40,8 @@ export async function POST() {
   const updated: string[] = []
 
   for (const recipe of recipes) {
-    if (recipe.image_url) continue
+    // Skip if already has a real (non-picsum) image
+    if (recipe.image_url && !recipe.image_url.includes("picsum.photos")) continue
 
     // Try curated match first, then AI fetch
     const imageUrl = findCuratedImage(recipe.title) || await fetchRecipeImage(recipe.title)

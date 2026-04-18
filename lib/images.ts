@@ -29,11 +29,6 @@ export async function fetchRecipeImage(title: string): Promise<string | null> {
     }
   } catch { /* fallback */ }
 
-  // Deterministic fallback — picsum with seed from title
-  let hash = 0
-  for (let i = 0; i < title.length; i++) {
-    hash = ((hash << 5) - hash) + title.charCodeAt(i)
-    hash |= 0
-  }
-  return `https://picsum.photos/seed/${Math.abs(hash) % 1000}/800/600`
+  // No fallback — better no image than a random tree
+  return null
 }
