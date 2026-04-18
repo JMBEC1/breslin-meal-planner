@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { GFBadge } from "@/components/GFBadge"
 import { RecipeRating } from "@/components/RecipeRating"
-import { CATEGORY_LABELS, AISLE_LABELS } from "@/types"
-import type { Recipe, RecipeCategory, AisleCategory } from "@/types"
+import { AISLE_LABELS } from "@/types"
+import type { Recipe, AisleCategory } from "@/types"
 
 export default function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -28,8 +28,6 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
 
   if (loading) return <div className="max-w-3xl mx-auto px-4 py-12 text-center text-meal-muted">Loading...</div>
   if (!recipe) return <div className="max-w-3xl mx-auto px-4 py-12 text-center text-meal-muted">Recipe not found.</div>
-
-  const categoryLabel = CATEGORY_LABELS[recipe.category as RecipeCategory] || recipe.category
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
@@ -62,7 +60,32 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
       )}
 
       <div className="flex flex-wrap items-center gap-3 mb-6 text-sm">
-        <span className="bg-meal-warm px-3 py-1 rounded-full font-medium">{categoryLabel}</span>
+        {([
+          { value: "school-lunch", label: "School Lunch", colour: "bg-meal-sky" },
+          { value: "dinner", label: "Dinner", colour: "bg-meal-coral" },
+          { value: "fancy", label: "Special Occasion", colour: "bg-meal-plum" },
+        ] as const).map((cat) => (
+          <button
+            key={cat.value}
+            onClick={async () => {
+              if (recipe.category === cat.value) return
+              const res = await fetch(`/api/recipes/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category: cat.value }),
+              })
+              if (res.ok) setRecipe(await res.json())
+            }}
+            className={`px-3 py-1 rounded-full font-medium transition-colors ${
+              recipe.category === cat.value
+                ? `${cat.colour} text-white`
+                : "bg-meal-warm text-meal-charcoal hover:opacity-80"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+        <div className="w-px h-5 bg-meal-warm" />
         {recipe.prep_time_mins && <span className="text-meal-muted">Prep: {recipe.prep_time_mins} min</span>}
         {recipe.cook_time_mins && <span className="text-meal-muted">Cook: {recipe.cook_time_mins} min</span>}
         {recipe.servings && <span className="text-meal-muted">Serves: {recipe.servings}</span>}
