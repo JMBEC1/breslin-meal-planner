@@ -464,8 +464,8 @@ export default function PlanPage() {
         const tomorrowDinnerRecipe = tomorrowDinner?.recipe_id ? recipes[tomorrowDinner.recipe_id] : null
         const tomorrowLunchRecipe = tomorrowLunch?.recipe_id ? recipes[tomorrowLunch.recipe_id] : null
 
-        function MealHeroCard({ label, sublabel, recipe, customText, colour, day, mealType }: {
-          label: string; sublabel: string; recipe: Recipe | null; customText?: string | null; colour: string; day: DayOfWeek; mealType: MealType
+        function MealHeroCard({ label, sublabel, recipe, customText, colour, day, mealType, sideIds }: {
+          label: string; sublabel: string; recipe: Recipe | null; customText?: string | null; colour: string; day: DayOfWeek; mealType: MealType; sideIds?: number[]
         }) {
           const title = recipe?.title || customText || "Nothing planned"
           const hasContent = recipe || customText
@@ -527,6 +527,15 @@ export default function PlanPage() {
                 <p className={`text-sm font-medium mt-0.5 ${hasContent ? "text-meal-charcoal" : "text-meal-muted"}`}>
                   {title}
                 </p>
+                {sideIds && sideIds.length > 0 && (
+                  <div className="mt-1">
+                    {sideIds.map((sideId) => (
+                      <span key={sideId} className="text-xs text-meal-sage mr-2">
+                        + {recipes[sideId]?.title || `#${sideId}`}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -537,10 +546,10 @@ export default function PlanPage() {
 
         // Build hero cards — skip lunch on weekends
         const heroCards = []
-        if (!todayIsWeekend) heroCards.push(<MealHeroCard key="tl" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" day={today} mealType="lunch" />)
-        heroCards.push(<MealHeroCard key="td" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" day={today} mealType="dinner" />)
-        if (!tomorrowIsWeekend) heroCards.push(<MealHeroCard key="tml" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" day={tomorrow} mealType="lunch" />)
-        heroCards.push(<MealHeroCard key="tmd" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" day={tomorrow} mealType="dinner" />)
+        if (!todayIsWeekend) heroCards.push(<MealHeroCard key="tl" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" day={today} mealType="lunch" sideIds={todayLunch?.side_ids} />)
+        heroCards.push(<MealHeroCard key="td" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" day={today} mealType="dinner" sideIds={todayDinner?.side_ids} />)
+        if (!tomorrowIsWeekend) heroCards.push(<MealHeroCard key="tml" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" day={tomorrow} mealType="lunch" sideIds={tomorrowLunch?.side_ids} />)
+        heroCards.push(<MealHeroCard key="tmd" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" day={tomorrow} mealType="dinner" sideIds={tomorrowDinner?.side_ids} />)
 
         return (
           <div className="mb-8">
