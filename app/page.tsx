@@ -470,13 +470,20 @@ export default function PlanPage() {
           )
         }
 
+        const todayIsWeekend = today === "saturday" || today === "sunday"
+        const tomorrowIsWeekend = tomorrow === "saturday" || tomorrow === "sunday"
+
+        // Build hero cards — skip lunch on weekends
+        const heroCards = []
+        if (!todayIsWeekend) heroCards.push(<MealHeroCard key="tl" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" />)
+        heroCards.push(<MealHeroCard key="td" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" />)
+        if (!tomorrowIsWeekend) heroCards.push(<MealHeroCard key="tml" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" />)
+        heroCards.push(<MealHeroCard key="tmd" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" />)
+
         return (
           <div className="mb-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MealHeroCard label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" />
-              <MealHeroCard label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" />
-              <MealHeroCard label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" />
-              <MealHeroCard label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" />
+            <div className={`grid gap-3 ${heroCards.length <= 2 ? "grid-cols-2" : heroCards.length === 3 ? "grid-cols-3" : "grid-cols-2 md:grid-cols-4"}`}>
+              {heroCards}
             </div>
           </div>
         )
@@ -494,6 +501,8 @@ export default function PlanPage() {
                   {DAY_LABELS[day]}
                 </h3>
                 {(["lunch", "dinner"] as MealType[]).map((mealType) => {
+                  const isWeekend = day === "saturday" || day === "sunday"
+                  if (mealType === "lunch" && isWeekend) return null
                   const slot = getSlot(day, mealType)
                   const recipe = slot?.recipe_id ? recipes[slot.recipe_id] : null
                   return (
@@ -541,6 +550,8 @@ export default function PlanPage() {
                 <h3 className="text-sm font-semibold text-meal-charcoal mb-3">{DAY_LABELS[day]}</h3>
                 <div className="space-y-2">
                   {(["lunch", "dinner"] as MealType[]).map((mealType) => {
+                    const isWeekend = day === "saturday" || day === "sunday"
+                    if (mealType === "lunch" && isWeekend) return null
                     const slot = getSlot(day, mealType)
                     const recipe = slot?.recipe_id ? recipes[slot.recipe_id] : null
                     return (
