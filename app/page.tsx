@@ -464,15 +464,18 @@ export default function PlanPage() {
         const tomorrowDinnerRecipe = tomorrowDinner?.recipe_id ? recipes[tomorrowDinner.recipe_id] : null
         const tomorrowLunchRecipe = tomorrowLunch?.recipe_id ? recipes[tomorrowLunch.recipe_id] : null
 
-        function MealHeroCard({ label, sublabel, recipe, customText, colour }: {
-          label: string; sublabel: string; recipe: Recipe | null; customText?: string | null; colour: string
+        function MealHeroCard({ label, sublabel, recipe, customText, colour, day, mealType }: {
+          label: string; sublabel: string; recipe: Recipe | null; customText?: string | null; colour: string; day: DayOfWeek; mealType: MealType
         }) {
           const title = recipe?.title || customText || "Nothing planned"
           const hasContent = recipe || customText
           return (
             <div
               className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-white cursor-pointer hover:shadow-md transition-shadow" : "bg-meal-warm/50"}`}
-              onClick={() => recipe && router.push(`/recipes/${recipe.id}`)}
+              onClick={() => {
+                if (recipe) router.push(`/recipes/${recipe.id}`)
+                else if (!customText) openPicker(day, mealType)
+              }}
             >
               {/* Image area */}
               <div className={`relative h-28 ${colour}`}>
@@ -490,6 +493,18 @@ export default function PlanPage() {
                     {sublabel}
                   </span>
                 </div>
+                {/* Swap button */}
+                {hasContent && (
+                  <button
+                    className="absolute bottom-2 right-2 bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
+                    onClick={(e) => { e.stopPropagation(); openPicker(day, mealType) }}
+                    title="Swap meal"
+                  >
+                    <svg className="w-3.5 h-3.5 text-meal-charcoal" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
+                    </svg>
+                  </button>
+                )}
                 {recipe && !recipe.is_gluten_free && (
                   <div className="absolute top-2 right-2">
                     <span className="bg-meal-amber/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">Gluten</span>
@@ -511,10 +526,10 @@ export default function PlanPage() {
 
         // Build hero cards — skip lunch on weekends
         const heroCards = []
-        if (!todayIsWeekend) heroCards.push(<MealHeroCard key="tl" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" />)
-        heroCards.push(<MealHeroCard key="td" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" />)
-        if (!tomorrowIsWeekend) heroCards.push(<MealHeroCard key="tml" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" />)
-        heroCards.push(<MealHeroCard key="tmd" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" />)
+        if (!todayIsWeekend) heroCards.push(<MealHeroCard key="tl" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" day={today} mealType="lunch" />)
+        heroCards.push(<MealHeroCard key="td" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" day={today} mealType="dinner" />)
+        if (!tomorrowIsWeekend) heroCards.push(<MealHeroCard key="tml" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" day={tomorrow} mealType="lunch" />)
+        heroCards.push(<MealHeroCard key="tmd" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" day={tomorrow} mealType="dinner" />)
 
         return (
           <div className="mb-8">
@@ -597,6 +612,13 @@ export default function PlanPage() {
                         )}
                         {(slot?.recipe_id || slot?.custom_text) && (
                           <div className="flex gap-2 mt-0.5">
+                            <button onClick={(e) => { e.stopPropagation(); openPicker(day, mealType) }}
+                              className="text-[10px] text-meal-sage hover:text-meal-sageHover" title="Swap meal">
+                              <svg className="w-3 h-3 inline mr-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
+                              </svg>
+                              swap
+                            </button>
                             <button onClick={(e) => { e.stopPropagation(); openPicker(day, mealType, true) }}
                               className="text-[10px] text-meal-sage hover:text-meal-sageHover">
                               + side
