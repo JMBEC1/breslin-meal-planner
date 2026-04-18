@@ -5,20 +5,8 @@ import type { Ingredient, MealSlot } from "@/types"
 
 export const dynamic = "force-dynamic"
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const week = searchParams.get("week")
-  if (!week) return NextResponse.json({ error: "week param required" }, { status: 400 })
-
-  const plan = await getMealPlan(week)
-  if (!plan) return NextResponse.json({ items: [], plan_id: null })
-
-  // Check for existing shopping list
-  const existing = await getShoppingList(plan.id)
-  if (existing) return NextResponse.json({ ...existing, plan_id: plan.id })
-
-  // Generate from meal plan
-  const recipeIds = (plan.meals as MealSlot[])
+async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: string }) {
+  const recipeIds = plan.meals
     .map((m) => m.recipe_id)
     .filter((id): id is number => id != null)
   const uniqueIds = [...new Set(recipeIds)]
@@ -52,9 +40,41 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Save the generated list
   const list = await upsertShoppingList(plan.id, items)
-  return NextResponse.json({ ...list, plan_id: plan.id })
+  return { ...list, plan_id: plan.id }
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const week = searchParams.get("week")
+  const refresh = searchParams.get("refresh") === "true"
+  if (!week) return NextResponse.json({ error: "week param required" }, { status: 400 })
+
+  const plan = await getMealPlan(week)
+  if (!plan) return NextResponse.json({ items: [], plan_id: null })
+
+  // If refresh requested, always regenerate
+  if (refresh) {
+    const result = await generateList(plan)
+    return NextResponse.json(result)
+  }
+
+  // Check for existing shopping list
+  const existing = await getShoppingList(plan.id)
+  if (existing) {
+    // Regenerate if the meal plan was updated after the shopping list
+    const planUpdated = new Date(plan.updated_at).getTime()
+    const listUpdated = new Date(existing.updated_at).getTime()
+    if (planUpdated > listUpdated) {
+      const result = await generateList(plan)
+      return NextResponse.json(result)
+    }
+    return NextResponse.json({ ...existing, plan_id: plan.id })
+  }
+
+  // No existing list — generate fresh
+  const result = await generateList(plan)
+  return NextResponse.json(result)
 }
 
 export async function POST(req: NextRequest) {

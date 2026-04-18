@@ -253,10 +253,25 @@ export default function ShoppingPage() {
             {uncheckedCount} items remaining
           </p>
         </div>
-        <button onClick={loadStaples}
-          className="px-3 py-1.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium hover:bg-meal-warm/80 transition-colors">
-          Staples
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              setLoading(true)
+              const res = await fetch(`/api/shopping?week=${week}&refresh=true`)
+              const data = await res.json()
+              setItems(data.items || [])
+              setPlanId(data.plan_id || null)
+              setLoading(false)
+            }}
+            className="px-3 py-1.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
+          >
+            Regenerate
+          </button>
+          <button onClick={loadStaples}
+            className="px-3 py-1.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium hover:bg-meal-warm/80 transition-colors">
+            Staples
+          </button>
+        </div>
       </div>
 
       {loading ? (
