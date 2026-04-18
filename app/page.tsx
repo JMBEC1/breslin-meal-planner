@@ -199,6 +199,31 @@ export default function PlanPage() {
     setSwappingIndex(null)
   }
 
+  // Save an AI suggestion as a real recipe (with auto image) and return the new ID
+  async function saveAsSuggestionRecipe(suggestion: DinnerSuggestion, category: string): Promise<number | null> {
+    if (suggestion.recipe_id) return suggestion.recipe_id // Already a stored recipe
+    const res = await fetch("/api/recipes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: suggestion.title,
+        category,
+        is_gluten_free: suggestion.is_gluten_free ?? true,
+        servings: suggestion.servings || 4,
+        description: suggestion.description || "",
+        ingredients: [],
+        instructions: "",
+        tags: ["ai-suggested"],
+      }),
+    })
+    if (res.ok) {
+      const recipe = await res.json()
+      setRecipes((prev) => ({ ...prev, [recipe.id]: recipe }))
+      return recipe.id
+    }
+    return null
+  }
+
   async function applyDinnerResults() {
     if (!dinnerResults) return
     const updated = meals.filter((m) => m.meal_type !== "dinner")
@@ -207,11 +232,13 @@ export default function PlanPage() {
     for (const dinner of dinnerResults) {
       if (dayIndex >= 7) break
       const day = dinnerDays[dayIndex]
+      // Auto-save AI suggestions as recipes
+      const recipeId = await saveAsSuggestionRecipe(dinner, "dinner")
       updated.push({
         day,
         meal_type: "dinner" as MealType,
-        recipe_id: dinner.recipe_id || null,
-        custom_text: dinner.recipe_id ? null : dinner.title,
+        recipe_id: recipeId,
+        custom_text: recipeId ? null : dinner.title,
       })
       if (dinner.leftovers && dayIndex + 1 < 7) {
         dayIndex++
@@ -225,16 +252,6 @@ export default function PlanPage() {
       dayIndex++
     }
     await savePlan(updated)
-    const newIds = dinnerResults.filter((d) => d.recipe_id).map((d) => d.recipe_id!)
-    for (const id of newIds) {
-      if (!recipes[id]) {
-        const r = await fetch(`/api/recipes/${id}`)
-        if (r.ok) {
-          const recipe = await r.json()
-          setRecipes((prev) => ({ ...prev, [id]: recipe }))
-        }
-      }
-    }
     setDinnersSaved(true)
   }
 
@@ -310,30 +327,21 @@ export default function PlanPage() {
         updated.push({ day, meal_type: "lunch" as MealType, recipe_id: null, custom_text: "School Order" })
       }
     }
-    // Fill remaining days with generated lunches
+    // Fill remaining days with generated lunches — auto-save AI suggestions as recipes
     let lunchIdx = 0
     for (const day of packedLunchDays) {
       if (lunchIdx >= lunchResults.length) break
       const lunch = lunchResults[lunchIdx]
+      const recipeId = await saveAsSuggestionRecipe(lunch, "school-lunch")
       updated.push({
         day,
         meal_type: "lunch" as MealType,
-        recipe_id: lunch.recipe_id || null,
-        custom_text: lunch.recipe_id ? null : lunch.title,
+        recipe_id: recipeId,
+        custom_text: recipeId ? null : lunch.title,
       })
       lunchIdx++
     }
     await savePlan(updated)
-    const newIds = lunchResults.filter((l) => l.recipe_id).map((l) => l.recipe_id!)
-    for (const id of newIds) {
-      if (!recipes[id]) {
-        const r = await fetch(`/api/recipes/${id}`)
-        if (r.ok) {
-          const recipe = await r.json()
-          setRecipes((prev) => ({ ...prev, [id]: recipe }))
-        }
-      }
-    }
     setLunchesSaved(true)
   }
 
