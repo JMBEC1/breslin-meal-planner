@@ -149,10 +149,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* Meal context — shows sides and meal rating */}
-      <MealContext recipeId={recipe.id} />
-
-      {/* Individual ratings */}
+      {/* Individual ratings for this recipe */}
       <RecipeRating recipeId={recipe.id} />
 
       {/* Source */}
@@ -161,6 +158,9 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
           Source: <a href={recipe.source_url} target="_blank" rel="noopener noreferrer" className="text-meal-sage hover:underline">{recipe.source_url}</a>
         </p>
       )}
+
+      {/* Sides inline + overall meal rating at the very bottom */}
+      <MealContext recipeId={recipe.id} />
 
       {/* Actions */}
       <div className="flex gap-3 pt-4 border-t border-meal-warm">
