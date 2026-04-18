@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     instructions: data.instructions?.trim() || "",
     tags: data.tags || [],
     source_url: data.source_url || null,
-    image_url: data.image_url || await fetchRecipeImage(data.title.trim()),
+    image_url: data.image_url || fetchRecipeImage(data.title.trim()),
     notes: data.notes?.trim() || null,
   })
 
