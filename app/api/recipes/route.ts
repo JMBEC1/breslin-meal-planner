@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getRecipes, insertRecipe } from "@/lib/db"
+import { fetchRecipeImage } from "@/lib/images"
 
 export const dynamic = "force-dynamic"
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     instructions: data.instructions?.trim() || "",
     tags: data.tags || [],
     source_url: data.source_url || null,
-    image_url: data.image_url || null,
+    image_url: data.image_url || await fetchRecipeImage(data.title.trim()),
     notes: data.notes?.trim() || null,
   })
 
