@@ -71,6 +71,18 @@ export default function PlanPage() {
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null)
   const [dinnersSaved, setDinnersSaved] = useState(false)
 
+  // Lunch generator state
+  const [lunchGenOpen, setLunchGenOpen] = useState(false)
+  const [lunchMode, setLunchMode] = useState<"stored" | "internet" | "mix">("mix")
+  const [lunchResults, setLunchResults] = useState<DinnerSuggestion[] | null>(null)
+  const [generatingLunches, setGeneratingLunches] = useState(false)
+  const [lunchInspiration, setLunchInspiration] = useState("")
+  const [swappingLunchIndex, setSwappingLunchIndex] = useState<number | null>(null)
+  const [lunchesSaved, setLunchesSaved] = useState(false)
+  const [schoolOrderDays, setSchoolOrderDays] = useState<Record<string, boolean>>({
+    monday: false, tuesday: false, wednesday: false, thursday: false, friday: false,
+  })
+
   const fetchPlan = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/plan?week=${weekStart}`)
@@ -226,6 +238,113 @@ export default function PlanPage() {
     setDinnersSaved(true)
   }
 
+  // ── Lunch generator ──────────────────────────────────────────
+
+  const WEEKDAYS: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+  const packedLunchDays = WEEKDAYS.filter((d) => !schoolOrderDays[d])
+
+  async function handleGenerateLunches() {
+    setGeneratingLunches(true)
+    setLunchResults(null)
+    setLunchesSaved(false)
+    const count = packedLunchDays.length
+    if (count === 0) {
+      // All days are school orders — just apply them directly
+      applySchoolOrdersOnly()
+      setGeneratingLunches(false)
+      return
+    }
+    const res = await fetch("/api/plan/generate-lunches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: lunchMode, inspiration: lunchInspiration.trim() || undefined }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      // Only take as many as we need (for non-order days)
+      setLunchResults((data.lunches || []).slice(0, count))
+    }
+    setGeneratingLunches(false)
+  }
+
+  function applySchoolOrdersOnly() {
+    const updated = meals.filter((m) => !(m.meal_type === "lunch" && WEEKDAYS.includes(m.day)))
+    for (const day of WEEKDAYS) {
+      if (schoolOrderDays[day]) {
+        updated.push({ day, meal_type: "lunch" as MealType, recipe_id: null, custom_text: "School Order" })
+      }
+    }
+    savePlan(updated)
+    setLunchesSaved(true)
+  }
+
+  async function handleSwapLunch(index: number) {
+    setSwappingLunchIndex(index)
+    const res = await fetch("/api/plan/generate-lunches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: lunchMode, inspiration: lunchInspiration.trim() || undefined, swapIndex: index }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.lunches?.length > 0) {
+        setLunchResults((prev) => {
+          if (!prev) return prev
+          const updated = [...prev]
+          updated[index] = data.lunches[0]
+          return updated
+        })
+      }
+    }
+    setSwappingLunchIndex(null)
+  }
+
+  async function applyLunchResults() {
+    if (!lunchResults) return
+    // Remove existing Mon-Fri lunches only
+    const updated = meals.filter((m) => !(m.meal_type === "lunch" && WEEKDAYS.includes(m.day)))
+    // Add school order days first
+    for (const day of WEEKDAYS) {
+      if (schoolOrderDays[day]) {
+        updated.push({ day, meal_type: "lunch" as MealType, recipe_id: null, custom_text: "School Order" })
+      }
+    }
+    // Fill remaining days with generated lunches
+    let lunchIdx = 0
+    for (const day of packedLunchDays) {
+      if (lunchIdx >= lunchResults.length) break
+      const lunch = lunchResults[lunchIdx]
+      updated.push({
+        day,
+        meal_type: "lunch" as MealType,
+        recipe_id: lunch.recipe_id || null,
+        custom_text: lunch.recipe_id ? null : lunch.title,
+      })
+      lunchIdx++
+    }
+    await savePlan(updated)
+    const newIds = lunchResults.filter((l) => l.recipe_id).map((l) => l.recipe_id!)
+    for (const id of newIds) {
+      if (!recipes[id]) {
+        const r = await fetch(`/api/recipes/${id}`)
+        if (r.ok) {
+          const recipe = await r.json()
+          setRecipes((prev) => ({ ...prev, [id]: recipe }))
+        }
+      }
+    }
+    setLunchesSaved(true)
+  }
+
+  function closeLunchGen() {
+    setLunchGenOpen(false)
+    setLunchResults(null)
+    setLunchesSaved(false)
+    setLunchInspiration("")
+    setSchoolOrderDays({ monday: false, tuesday: false, wednesday: false, thursday: false, friday: false })
+  }
+
   function closeDinnerGen() {
     setDinnerGenOpen(false)
     setDinnerResults(null)
@@ -266,6 +385,12 @@ export default function PlanPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setLunchGenOpen(true)}
+            className="px-4 py-2 rounded-lg bg-meal-sky text-white text-sm font-medium hover:bg-meal-sky/80 transition-colors"
+          >
+            Generate Lunches
+          </button>
           <button
             onClick={() => setDinnerGenOpen(true)}
             className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/80 transition-colors"
@@ -448,6 +573,189 @@ export default function PlanPage() {
             ))}
           </div>
         </>
+      )}
+
+      {/* ── Lunch Generator Modal ─────────────────────────────────── */}
+      {lunchGenOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
+          onClick={closeLunchGen}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[90vh] overflow-auto p-5"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-meal-charcoal mb-2">Generate School Lunches</h3>
+            <p className="text-sm text-meal-muted mb-4">
+              5 packed lunches for Monday–Friday. Swap any you don&apos;t like.
+            </p>
+
+            {/* Mode selector */}
+            <div className="flex gap-1 bg-meal-warm rounded-lg p-1 mb-4">
+              {([
+                { value: "stored" as const, label: "Our Recipes" },
+                { value: "mix" as const, label: "Mix" },
+                { value: "internet" as const, label: "Internet" },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setLunchMode(opt.value); setLunchResults(null); setLunchesSaved(false) }}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
+                    lunchMode === opt.value ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* School order days */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
+                Ordering school lunch on:
+              </label>
+              <div className="flex gap-2">
+                {WEEKDAYS.map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => setSchoolOrderDays((prev) => ({ ...prev, [day]: !prev[day] }))}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                      schoolOrderDays[day]
+                        ? "bg-meal-plum text-white"
+                        : "bg-meal-warm text-meal-charcoal hover:bg-meal-plum/20"
+                    }`}
+                  >
+                    {DAY_LABELS[day]}
+                  </button>
+                ))}
+              </div>
+              {Object.values(schoolOrderDays).some(Boolean) && (
+                <p className="text-xs text-meal-plum mt-1.5">
+                  Packing lunches for {packedLunchDays.length} day{packedLunchDays.length !== 1 ? "s" : ""} this week
+                </p>
+              )}
+            </div>
+
+            {/* Inspiration */}
+            <div className="mb-3">
+              <label className="block text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
+                Inspiration (optional)
+              </label>
+              <input
+                type="text"
+                value={lunchInspiration}
+                onChange={(e) => setLunchInspiration(e.target.value)}
+                placeholder="e.g. Bento, wraps, no-cook, protein-packed..."
+                className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {["Bento Box", "Wraps", "No Cook", "Sandwiches", "Salads", "Protein", "Snack Box", "Thermos"].map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => setLunchInspiration(chip)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      lunchInspiration === chip
+                        ? "bg-meal-sky text-white"
+                        : "bg-meal-warm text-meal-charcoal hover:bg-meal-sky/20"
+                    }`}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Generate button */}
+            {!lunchResults && (
+              <button
+                onClick={handleGenerateLunches}
+                disabled={generatingLunches}
+                className="w-full py-3 rounded-lg bg-meal-sky text-white font-medium hover:bg-meal-sky/80 transition-colors disabled:opacity-50 mt-3"
+              >
+                {generatingLunches ? "Generating..." : lunchInspiration.trim() ? `Generate "${lunchInspiration}" Lunches` : "Surprise Me!"}
+              </button>
+            )}
+
+            {/* Loading */}
+            {generatingLunches && (
+              <div className="text-center py-6">
+                <div className="inline-block w-6 h-6 border-2 border-meal-sky border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-meal-muted mt-2">Packing the lunchboxes...</p>
+              </div>
+            )}
+
+            {/* Results */}
+            {lunchResults && !generatingLunches && (
+              <div className="mt-4">
+                <div className="space-y-2 mb-4">
+                  {lunchResults.map((l, i) => (
+                    <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-meal-cream group">
+                      <span className="text-sm font-bold text-meal-sky w-10 shrink-0 mt-0.5">
+                        {DAY_LABELS[packedLunchDays[i]] || "?"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-meal-charcoal">{l.title}</p>
+                        {l.description && <p className="text-xs text-meal-muted mt-0.5">{l.description}</p>}
+                        <div className="flex items-center gap-2 mt-1">
+                          {l.is_gluten_free ? (
+                            <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                          )}
+                          {l.source_hint && (
+                            <span className="text-[10px] text-meal-muted">{l.source_hint}</span>
+                          )}
+                        </div>
+                      </div>
+                      {!lunchesSaved && (
+                        <button
+                          onClick={() => handleSwapLunch(i)}
+                          disabled={swappingLunchIndex === i}
+                          className="p-1.5 rounded-lg text-meal-muted hover:text-meal-sky hover:bg-white transition-colors shrink-0"
+                          title="Swap this lunch"
+                        >
+                          {swappingLunchIndex === i ? (
+                            <div className="w-4 h-4 border-2 border-meal-sky border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {!lunchesSaved ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setLunchResults(null); setLunchesSaved(false) }}
+                      className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium"
+                    >
+                      Re-roll All
+                    </button>
+                    <button
+                      onClick={applyLunchResults}
+                      className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
+                    >
+                      Use These Lunches
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-meal-sage/10 text-meal-sage text-sm font-medium">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Lunches saved for Mon–Fri!
+                    </div>
+                    <button onClick={closeLunchGen}
+                      className="w-full py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
+                      Done
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Dinner Generator Modal ────────────────────────────────── */}
