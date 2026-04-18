@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { DAYS, DAY_LABELS } from "@/types"
 import type { MealSlot, DayOfWeek, MealType, Recipe } from "@/types"
 
@@ -53,6 +54,7 @@ interface DinnerSuggestion {
 }
 
 export default function PlanPage() {
+  const router = useRouter()
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
   const [meals, setMeals] = useState<MealSlot[]>([])
   const [recipes, setRecipes] = useState<Record<number, Recipe>>({})
@@ -445,7 +447,10 @@ export default function PlanPage() {
           const title = recipe?.title || customText || "Nothing planned"
           const hasContent = recipe || customText
           return (
-            <div className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-white" : "bg-meal-warm/50"}`}>
+            <div
+              className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-white cursor-pointer hover:shadow-md transition-shadow" : "bg-meal-warm/50"}`}
+              onClick={() => recipe && router.push(`/recipes/${recipe.id}`)}
+            >
               {/* Image area */}
               <div className={`relative h-28 ${colour}`}>
                 {recipe?.image_url ? (
@@ -521,14 +526,17 @@ export default function PlanPage() {
                           ? "bg-white shadow-sm hover:shadow-md"
                           : "bg-meal-warm/50 hover:bg-meal-warm border-2 border-dashed border-meal-warm"
                       }`}
-                      onClick={() => slot?.recipe_id || slot?.custom_text ? undefined : openPicker(day, mealType)}
+                      onClick={() => {
+                        if (slot?.recipe_id) router.push(`/recipes/${slot.recipe_id}`)
+                        else if (!slot?.custom_text) openPicker(day, mealType)
+                      }}
                     >
                       <span className="text-[10px] font-semibold text-meal-muted uppercase">
                         {mealType}
                       </span>
                       {recipe ? (
                         <div className="mt-1">
-                          <p className="font-medium text-meal-charcoal text-xs line-clamp-2">{recipe.title}</p>
+                          <p className="font-medium text-meal-charcoal text-xs line-clamp-2 hover:text-meal-sage">{recipe.title}</p>
                           {!recipe.is_gluten_free && (
                             <span className="text-[8px] font-semibold text-meal-amber mt-1 inline-block">GLUTEN</span>
                           )}
@@ -565,8 +573,11 @@ export default function PlanPage() {
                     return (
                       <div
                         key={mealType}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-meal-cream"
-                        onClick={() => !slot?.recipe_id && !slot?.custom_text ? openPicker(day, mealType) : undefined}
+                        className="flex items-center gap-3 p-3 rounded-lg bg-meal-cream cursor-pointer"
+                        onClick={() => {
+                          if (slot?.recipe_id) router.push(`/recipes/${slot.recipe_id}`)
+                          else if (!slot?.custom_text) openPicker(day, mealType)
+                        }}
                       >
                         <span className={`text-[10px] font-semibold uppercase w-12 ${
                           mealType === "lunch" ? "text-meal-sky" : "text-meal-coral"
