@@ -31,18 +31,20 @@ export const AISLE_LABELS: Record<AisleCategory, string> = {
 
 // ── Recipe ──────────────────────────────────────────────────────────────────
 
-export type RecipeCategory = "school-lunch" | "dinner" | "fancy"
+export type RecipeCategory = "school-lunch" | "dinner" | "fancy" | "side"
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
   "school-lunch": "School Lunch",
   "dinner": "Dinner",
   "fancy": "Special Occasion",
+  "side": "Side",
 }
 
 export const CATEGORY_COLOURS: Record<RecipeCategory, string> = {
   "school-lunch": "bg-meal-sky",
   "dinner": "bg-meal-coral",
   "fancy": "bg-meal-plum",
+  "side": "bg-meal-sage",
 }
 
 export interface Ingredient {

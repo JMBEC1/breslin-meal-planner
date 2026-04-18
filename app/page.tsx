@@ -1115,30 +1115,61 @@ export default function PlanPage() {
             </div>
 
             <div className="border-t border-meal-warm pt-3">
-              <h4 className="text-xs font-semibold text-meal-muted uppercase mb-2">Or pick a recipe</h4>
-              {allRecipes.length === 0 ? (
-                <p className="text-sm text-meal-muted py-4 text-center">No recipes yet. <Link href="/recipes/new" className="text-meal-sage hover:underline">Add one?</Link></p>
-              ) : (
-                <div className="space-y-1">
-                  {allRecipes.map((r) => (
-                    <button
-                      key={r.id}
-                      onClick={() => {
-                        assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
-                        setRecipes((prev) => ({ ...prev, [r.id]: r }))
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
-                    >
-                      <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
-                      {r.is_gluten_free ? (
-                        <span className="text-[10px] font-semibold text-meal-sage">GF</span>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <h4 className="text-xs font-semibold text-meal-muted uppercase mb-2">
+                {pickerOpen.addSide ? "Pick a side" : "Or pick a recipe"}
+              </h4>
+              {(() => {
+                const filtered = pickerOpen.addSide
+                  ? allRecipes.filter((r) => r.category === "side")
+                  : allRecipes
+                const others = pickerOpen.addSide
+                  ? allRecipes.filter((r) => r.category !== "side")
+                  : []
+                return filtered.length === 0 && others.length === 0 ? (
+                  <p className="text-sm text-meal-muted py-4 text-center">No recipes yet. <Link href="/recipes/new" className="text-meal-sage hover:underline">Add one?</Link></p>
+                ) : (
+                  <div className="space-y-1">
+                    {filtered.length === 0 && pickerOpen.addSide && (
+                      <p className="text-sm text-meal-muted py-2 text-center">No sides yet — categorise a recipe as &quot;Side&quot; or pick from all below.</p>
+                    )}
+                    {filtered.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => {
+                          assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
+                          setRecipes((prev) => ({ ...prev, [r.id]: r }))
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
+                      >
+                        <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
+                        {r.is_gluten_free ? (
+                          <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                        )}
+                      </button>
+                    ))}
+                    {pickerOpen.addSide && others.length > 0 && (
+                      <>
+                        <h4 className="text-xs font-semibold text-meal-muted uppercase mt-3 mb-1">All recipes</h4>
+                        {others.map((r) => (
+                          <button
+                            key={r.id}
+                            onClick={() => {
+                              assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
+                              setRecipes((prev) => ({ ...prev, [r.id]: r }))
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
+                          >
+                            <span className="flex-1 text-sm text-meal-muted">{r.title}</span>
+                            <span className="text-[10px] text-meal-muted">{r.category}</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
