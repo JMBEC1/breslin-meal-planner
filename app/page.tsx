@@ -27,6 +27,31 @@ function shiftWeek(monday: string, delta: number): string {
   return d.toISOString().split("T")[0]
 }
 
+function getTodayDay(): DayOfWeek {
+  const days: DayOfWeek[] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+  return days[new Date().getDay()]
+}
+
+function getTomorrowDay(): DayOfWeek {
+  const days: DayOfWeek[] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+  return days[(new Date().getDay() + 1) % 7]
+}
+
+const DAY_FULL_LABELS: Record<DayOfWeek, string> = {
+  monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday",
+  thursday: "Thursday", friday: "Friday", saturday: "Saturday", sunday: "Sunday",
+}
+
+interface DinnerSuggestion {
+  recipe_id: number | null
+  title: string
+  is_gluten_free?: boolean
+  servings?: number
+  leftovers?: boolean
+  description?: string
+  source_hint?: string
+}
+
 export default function PlanPage() {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
   const [meals, setMeals] = useState<MealSlot[]>([])
@@ -36,10 +61,15 @@ export default function PlanPage() {
   const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType } | null>(null)
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
+
+  // Dinner generator state
   const [dinnerGenOpen, setDinnerGenOpen] = useState(false)
   const [dinnerMode, setDinnerMode] = useState<"stored" | "internet" | "mix">("mix")
-  const [dinnerResults, setDinnerResults] = useState<{ recipe_id: number | null; title: string; is_gluten_free?: boolean; servings?: number; leftovers?: boolean; description?: string; source_hint?: string }[] | null>(null)
+  const [dinnerResults, setDinnerResults] = useState<DinnerSuggestion[] | null>(null)
   const [generatingDinners, setGeneratingDinners] = useState(false)
+  const [inspiration, setInspiration] = useState("")
+  const [swappingIndex, setSwappingIndex] = useState<number | null>(null)
+  const [dinnersSaved, setDinnersSaved] = useState(false)
 
   const fetchPlan = useCallback(async () => {
     setLoading(true)
@@ -47,7 +77,6 @@ export default function PlanPage() {
     const data = await res.json()
     if (data?.meals) {
       setMeals(data.meals)
-      // Fetch recipe details for any assigned recipes
       const ids = data.meals
         .map((m: MealSlot) => m.recipe_id)
         .filter((id: number | null): id is number => id != null)
@@ -104,7 +133,7 @@ export default function PlanPage() {
       const data = await res.json()
       const updated = [...meals]
       for (const s of data.suggestions || []) {
-        const exists = updated.find((m) => m.day === s.day && m.meal_type === s.meal_type)
+        const exists = updated.find((m: MealSlot) => m.day === s.day && m.meal_type === s.meal_type)
         if (!exists) {
           updated.push({
             day: s.day,
@@ -119,13 +148,16 @@ export default function PlanPage() {
     setGenerating(false)
   }
 
+  // ── Dinner generator ────────────────────────────────────────────
+
   async function handleGenerateDinners() {
     setGeneratingDinners(true)
     setDinnerResults(null)
+    setDinnersSaved(false)
     const res = await fetch("/api/plan/generate-dinners", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: dinnerMode }),
+      body: JSON.stringify({ mode: dinnerMode, inspiration: inspiration.trim() || undefined }),
     })
     if (res.ok) {
       const data = await res.json()
@@ -134,10 +166,31 @@ export default function PlanPage() {
     setGeneratingDinners(false)
   }
 
+  async function handleSwapDinner(index: number) {
+    setSwappingIndex(index)
+    const res = await fetch("/api/plan/generate-dinners", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: dinnerMode, inspiration: inspiration.trim() || undefined, swapIndex: index }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.dinners?.length > 0) {
+        setDinnerResults((prev) => {
+          if (!prev) return prev
+          const updated = [...prev]
+          updated[index] = data.dinners[0]
+          return updated
+        })
+      }
+    }
+    setSwappingIndex(null)
+  }
+
   async function applyDinnerResults() {
     if (!dinnerResults) return
     const updated = meals.filter((m) => m.meal_type !== "dinner")
-    const dinnerDays = DAYS.slice() // Mon-Sun
+    const dinnerDays = DAYS.slice()
     let dayIndex = 0
     for (const dinner of dinnerResults) {
       if (dayIndex >= 7) break
@@ -148,7 +201,6 @@ export default function PlanPage() {
         recipe_id: dinner.recipe_id || null,
         custom_text: dinner.recipe_id ? null : dinner.title,
       })
-      // If big meal with leftovers, mark next day too
       if (dinner.leftovers && dayIndex + 1 < 7) {
         dayIndex++
         updated.push({
@@ -161,7 +213,6 @@ export default function PlanPage() {
       dayIndex++
     }
     await savePlan(updated)
-    // Fetch any new recipe details
     const newIds = dinnerResults.filter((d) => d.recipe_id).map((d) => d.recipe_id!)
     for (const id of newIds) {
       if (!recipes[id]) {
@@ -172,8 +223,14 @@ export default function PlanPage() {
         }
       }
     }
+    setDinnersSaved(true)
+  }
+
+  function closeDinnerGen() {
     setDinnerGenOpen(false)
     setDinnerResults(null)
+    setDinnersSaved(false)
+    setInspiration("")
   }
 
   async function openPicker(day: DayOfWeek, mealType: MealType) {
@@ -183,6 +240,8 @@ export default function PlanPage() {
       if (res.ok) setAllRecipes(await res.json())
     }
   }
+
+  const INSPIRATION_CHIPS = ["Indian", "Mexican", "Asian", "Italian", "Salad", "Slow Cooker", "BBQ", "One Pot", "Quick & Easy", "Comfort Food"]
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-6">
@@ -228,6 +287,75 @@ export default function PlanPage() {
           </Link>
         </div>
       </div>
+
+      {/* ── Today & Tomorrow Hero ─────────────────────────────── */}
+      {!loading && (() => {
+        const today = getTodayDay()
+        const tomorrow = getTomorrowDay()
+        const isCurrentWeek = weekStart === getMonday(new Date())
+
+        if (!isCurrentWeek) return null
+
+        const todayDinner = getSlot(today, "dinner")
+        const todayLunch = getSlot(today, "lunch")
+        const tomorrowDinner = getSlot(tomorrow, "dinner")
+        const tomorrowLunch = getSlot(tomorrow, "lunch")
+
+        const todayDinnerRecipe = todayDinner?.recipe_id ? recipes[todayDinner.recipe_id] : null
+        const todayLunchRecipe = todayLunch?.recipe_id ? recipes[todayLunch.recipe_id] : null
+        const tomorrowDinnerRecipe = tomorrowDinner?.recipe_id ? recipes[tomorrowDinner.recipe_id] : null
+        const tomorrowLunchRecipe = tomorrowLunch?.recipe_id ? recipes[tomorrowLunch.recipe_id] : null
+
+        function MealHeroCard({ label, sublabel, recipe, customText, colour }: {
+          label: string; sublabel: string; recipe: Recipe | null; customText?: string | null; colour: string
+        }) {
+          const title = recipe?.title || customText || "Nothing planned"
+          const hasContent = recipe || customText
+          return (
+            <div className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-white" : "bg-meal-warm/50"}`}>
+              {/* Image area */}
+              <div className={`relative h-28 ${colour}`}>
+                {recipe?.image_url ? (
+                  <img src={recipe.image_url} alt={title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <svg className="w-10 h-10 text-white/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75l-1.5.75a3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0L3 16.5m15-3.379a48.474 48.474 0 00-6-.371c-2.032 0-4.034.126-6 .371m12 0c.39.049.777.102 1.163.16 1.07.16 1.837 1.094 1.837 2.175v5.169c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 013 20.625v-5.17c0-1.08.768-2.014 1.837-2.174A47.78 47.78 0 016 13.12M12.265 3.11a.375.375 0 11-.53 0L12 2.845l.265.265zm-3 0a.375.375 0 11-.53 0L9 2.845l.265.265zm6 0a.375.375 0 11-.53 0L15 2.845l.265.265z" />
+                    </svg>
+                  </div>
+                )}
+                <div className="absolute top-2 left-2">
+                  <span className="bg-black/50 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase">
+                    {sublabel}
+                  </span>
+                </div>
+                {recipe && !recipe.is_gluten_free && (
+                  <div className="absolute top-2 right-2">
+                    <span className="bg-meal-amber/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">Gluten</span>
+                  </div>
+                )}
+              </div>
+              <div className="px-3 py-2.5">
+                <p className="text-xs font-semibold text-meal-muted uppercase">{label}</p>
+                <p className={`text-sm font-medium mt-0.5 ${hasContent ? "text-meal-charcoal" : "text-meal-muted"}`}>
+                  {title}
+                </p>
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <div className="mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <MealHeroCard label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" />
+              <MealHeroCard label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" />
+              <MealHeroCard label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" />
+              <MealHeroCard label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" />
+            </div>
+          </div>
+        )
+      })()}
 
       {loading ? (
         <div className="text-center py-12 text-meal-muted">Loading...</div>
@@ -322,15 +450,15 @@ export default function PlanPage() {
         </>
       )}
 
-      {/* Dinner Generator Modal */}
+      {/* ── Dinner Generator Modal ────────────────────────────────── */}
       {dinnerGenOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
-          onClick={() => { setDinnerGenOpen(false); setDinnerResults(null) }}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[85vh] overflow-auto p-5"
+          onClick={closeDinnerGen}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[90vh] overflow-auto p-5"
             onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-meal-charcoal mb-2">Generate 7 Dinners</h3>
+            <h3 className="text-lg font-semibold text-meal-charcoal mb-2">Generate Dinners</h3>
             <p className="text-sm text-meal-muted mb-4">
-              Pick a source and we&apos;ll fill your week with dinners. Big meals auto-add a leftovers night.
+              Fill your week with dinners. Swap any you don&apos;t like, add a theme, or go with surprise.
             </p>
 
             {/* Mode selector */}
@@ -342,7 +470,7 @@ export default function PlanPage() {
               ]).map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={() => { setDinnerMode(opt.value); setDinnerResults(null) }}
+                  onClick={() => { setDinnerMode(opt.value); setDinnerResults(null); setDinnersSaved(false) }}
                   className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
                     dinnerMode === opt.value ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"
                   }`}
@@ -352,20 +480,43 @@ export default function PlanPage() {
               ))}
             </div>
 
-            <p className="text-xs text-meal-muted mb-4">
-              {dinnerMode === "stored" && "Picks from your saved recipes, favouring higher-rated ones."}
-              {dinnerMode === "mix" && "A mix of your favourites and new AI-suggested recipes."}
-              {dinnerMode === "internet" && "AI suggests top-rated recipes from popular food sites."}
-            </p>
+            {/* Inspiration input */}
+            <div className="mb-3">
+              <label className="block text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
+                Inspiration (optional)
+              </label>
+              <input
+                type="text"
+                value={inspiration}
+                onChange={(e) => setInspiration(e.target.value)}
+                placeholder="e.g. Indian, salads, slow cooker, comfort food..."
+                className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {INSPIRATION_CHIPS.map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => setInspiration(chip)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      inspiration === chip
+                        ? "bg-meal-sage text-white"
+                        : "bg-meal-warm text-meal-charcoal hover:bg-meal-sage/20"
+                    }`}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Generate button */}
             {!dinnerResults && (
               <button
                 onClick={handleGenerateDinners}
                 disabled={generatingDinners}
-                className="w-full py-3 rounded-lg bg-meal-coral text-white font-medium hover:bg-meal-coral/80 transition-colors disabled:opacity-50"
+                className="w-full py-3 rounded-lg bg-meal-coral text-white font-medium hover:bg-meal-coral/80 transition-colors disabled:opacity-50 mt-3"
               >
-                {generatingDinners ? "Generating..." : "Generate Dinners"}
+                {generatingDinners ? "Generating..." : inspiration.trim() ? `Generate "${inspiration}" Dinners` : "Surprise Me!"}
               </button>
             )}
 
@@ -379,11 +530,11 @@ export default function PlanPage() {
 
             {/* Results */}
             {dinnerResults && !generatingDinners && (
-              <div>
+              <div className="mt-4">
                 <div className="space-y-2 mb-4">
                   {dinnerResults.map((d, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-meal-cream">
-                      <span className="text-sm font-bold text-meal-coral w-6 shrink-0">{i + 1}</span>
+                    <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-meal-cream group">
+                      <span className="text-sm font-bold text-meal-coral w-5 shrink-0 mt-0.5">{i + 1}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-meal-charcoal">{d.title}</p>
                         {d.description && <p className="text-xs text-meal-muted mt-0.5">{d.description}</p>}
@@ -394,38 +545,81 @@ export default function PlanPage() {
                             <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
                           )}
                           {d.leftovers && (
-                            <span className="text-[10px] font-semibold text-meal-plum">+ Leftovers night</span>
+                            <span className="text-[10px] font-semibold text-meal-plum">+ Leftovers</span>
                           )}
                           {d.source_hint && (
                             <span className="text-[10px] text-meal-muted">{d.source_hint}</span>
                           )}
                         </div>
                       </div>
+                      {/* Swap button */}
+                      {!dinnersSaved && (
+                        <button
+                          onClick={() => handleSwapDinner(i)}
+                          disabled={swappingIndex === i}
+                          className="p-1.5 rounded-lg text-meal-muted hover:text-meal-coral hover:bg-white transition-colors shrink-0"
+                          title="Swap this meal"
+                        >
+                          {swappingIndex === i ? (
+                            <div className="w-4 h-4 border-2 border-meal-coral border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setDinnerResults(null) }}
-                    className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium"
-                  >
-                    Re-roll
-                  </button>
-                  <button
-                    onClick={applyDinnerResults}
-                    className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
-                  >
-                    Use These Dinners
-                  </button>
-                </div>
+                {!dinnersSaved ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setDinnerResults(null); setDinnersSaved(false) }}
+                      className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium"
+                    >
+                      Re-roll All
+                    </button>
+                    <button
+                      onClick={applyDinnerResults}
+                      className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
+                    >
+                      Use These Dinners
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-meal-sage/10 text-meal-sage text-sm font-medium">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Dinners saved to your plan!
+                    </div>
+                    <div className="flex gap-2">
+                      <Link
+                        href={`/shopping?week=${weekStart}`}
+                        className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium text-center hover:bg-meal-sageHover transition-colors"
+                        onClick={closeDinnerGen}
+                      >
+                        Generate Shopping List
+                      </Link>
+                      <button
+                        onClick={closeDinnerGen}
+                        className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Recipe Picker Modal */}
+      {/* ── Recipe Picker Modal ───────────────────────────────────── */}
       {pickerOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
           onClick={() => setPickerOpen(null)}>
