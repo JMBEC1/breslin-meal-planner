@@ -134,22 +134,34 @@ export default function InventoryPage() {
     setScanning(true)
     setScannedItems(null)
     setScanError("")
-    const formData = new FormData()
+    // Process each image separately for speed and to avoid timeouts
+    const allItems: { name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean }[] = []
+    const seenNames = new Set<string>()
+
     for (let i = 0; i < files.length; i++) {
       const compressed = await compressImage(files[i])
+      const formData = new FormData()
       formData.append("images", compressed, `photo-${i}.jpg`)
+      formData.append("location", location)
+      try {
+        const res = await fetch("/api/inventory/scan", { method: "POST", body: formData })
+        const data = await res.json()
+        if (res.ok && data.items) {
+          for (const item of data.items) {
+            const key = item.name.toLowerCase()
+            if (!seenNames.has(key)) {
+              seenNames.add(key)
+              allItems.push(item)
+            }
+          }
+        }
+      } catch { /* continue with next image */ }
     }
-    formData.append("location", location)
-    try {
-      const res = await fetch("/api/inventory/scan", { method: "POST", body: formData })
-      const data = await res.json()
-      if (res.ok && data.items?.length > 0) {
-        setScannedItems(data.items.map((item: { name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean }) => ({ ...item, selected: true })))
-      } else {
-        setScanError(data.error || "No items found — try a clearer photo or closer up")
-      }
-    } catch {
-      setScanError("Scan failed — check your connection and try again")
+
+    if (allItems.length > 0) {
+      setScannedItems(allItems.map((item) => ({ ...item, selected: true })))
+    } else {
+      setScanError("No items found — try clearer photos or closer up")
     }
     setScanning(false)
     e.target.value = ""
