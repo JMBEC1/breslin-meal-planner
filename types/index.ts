@@ -120,6 +120,7 @@ export interface ShoppingItem {
   is_staple: boolean
   in_inventory?: boolean
   inventory_note?: string
+  alternative_note?: string
 }
 
 export interface ShoppingList {

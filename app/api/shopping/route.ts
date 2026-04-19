@@ -56,6 +56,12 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
     const shared = wa.filter((w) => wb.some((w2) => w2.includes(w) || w.includes(w2)))
     return shared.length >= 1 && shared.length >= Math.min(wa.length, wb.length) * 0.5
   }
+  // Check if two items are in the same food family (share a significant word but aren't a full match)
+  function partialMatch(a: string, b: string): boolean {
+    const wa = sigWords(a), wb = sigWords(b)
+    if (wa.length === 0 || wb.length === 0) return false
+    return wa.some((w) => wb.some((w2) => w2.includes(w) || w.includes(w2)))
+  }
   const inventory = await getInventory()
   for (const item of items) {
     const match = inventory.find((inv) => fuzzyMatch(item.name, inv.name))
@@ -63,6 +69,13 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
       item.in_inventory = true
       const loc = match.location.charAt(0).toUpperCase() + match.location.slice(1)
       item.inventory_note = `${match.quantity}${match.unit ? " " + match.unit : ""} in ${loc}`
+    } else {
+      // Look for alternatives — same food family but different cut/variety
+      const alt = inventory.find((inv) => partialMatch(item.name, inv.name))
+      if (alt) {
+        const loc = alt.location.charAt(0).toUpperCase() + alt.location.slice(1)
+        item.alternative_note = `You have ${alt.name} (${alt.quantity}${alt.unit ? " " + alt.unit : ""} in ${loc})`
+      }
     }
   }
 

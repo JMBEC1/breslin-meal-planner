@@ -319,29 +319,35 @@ export default function ShoppingPage() {
               </h2>
               <div className="bg-white rounded-xl overflow-hidden shadow-sm">
                 {aisleItems.map((item) => (
-                  <button
-                    key={item._index}
-                    onClick={() => toggleItem(item._index)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-meal-cream last:border-0 transition-colors hover:bg-meal-cream/50 ${
-                      item.checked ? "opacity-50" : ""
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                      item.checked ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
-                    }`}>
-                      {item.checked && (
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className={`flex-1 text-sm ${item.checked ? "line-through text-meal-muted" : "text-meal-charcoal"}`}>
-                      {item.quantity && <span className="font-medium">{item.quantity}</span>}
-                      {item.unit && <span className="font-medium"> {item.unit}</span>}
-                      {" "}{item.name}
-                    </span>
-                    {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
-                  </button>
+                  <div key={item._index} className="border-b border-meal-cream last:border-0">
+                    <button
+                      onClick={() => toggleItem(item._index)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-meal-cream/50 ${
+                        item.checked ? "opacity-50" : ""
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        item.checked ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
+                      }`}>
+                        {item.checked && (
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`flex-1 text-sm ${item.checked ? "line-through text-meal-muted" : "text-meal-charcoal"}`}>
+                        {item.quantity && <span className="font-medium">{item.quantity}</span>}
+                        {item.unit && <span className="font-medium"> {item.unit}</span>}
+                        {" "}{item.name}
+                      </span>
+                      {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
+                    </button>
+                    {item.alternative_note && !item.checked && (
+                      <div className="px-4 pb-2 -mt-1 ml-8">
+                        <p className="text-xs text-meal-coral font-medium">💡 {item.alternative_note}</p>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
