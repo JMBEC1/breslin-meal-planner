@@ -21,6 +21,11 @@ export default function InventoryPage() {
   const [newType, setNewType] = useState("ingredient")
   const [toast, setToast] = useState<{ item: InventoryItem; visible: boolean } | null>(null)
 
+  // Scan state
+  const [scanning, setScanning] = useState(false)
+  const [scannedItems, setScannedItems] = useState<{ name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean; selected: boolean }[] | null>(null)
+  const [savingScanned, setSavingScanned] = useState(false)
+
   const fetchItems = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/inventory?location=${location}`)
@@ -103,6 +108,47 @@ export default function InventoryPage() {
   // Order: batch_cook, frozen_meal, ready_meal, ingredient
   const typeOrder = ["batch_cook", "frozen_meal", "ready_meal", "ingredient"]
   const sortedGroups = typeOrder.filter((t) => grouped[t]?.length).map((t) => ({ type: t, items: grouped[t] }))
+
+  async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setScanning(true)
+    setScannedItems(null)
+    const formData = new FormData()
+    formData.append("image", file)
+    formData.append("location", location)
+    const res = await fetch("/api/inventory/scan", { method: "POST", body: formData })
+    if (res.ok) {
+      const data = await res.json()
+      setScannedItems((data.items || []).map((item: { name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean }) => ({ ...item, selected: true })))
+    }
+    setScanning(false)
+    e.target.value = ""
+  }
+
+  function toggleScannedItem(index: number) {
+    setScannedItems((prev) => prev ? prev.map((item, i) => i === index ? { ...item, selected: !item.selected } : item) : prev)
+  }
+
+  async function saveScannedItems() {
+    if (!scannedItems) return
+    setSavingScanned(true)
+    const selected = scannedItems.filter((item) => item.selected)
+    for (const item of selected) {
+      await fetch("/api/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: item.name, location, item_type: "ingredient",
+          quantity: item.quantity, unit: item.unit, aisle: item.aisle,
+          is_gluten_free: item.is_gluten_free,
+        }),
+      })
+    }
+    setSavingScanned(false)
+    setScannedItems(null)
+    fetchItems()
+  }
 
   const [assignOpen, setAssignOpen] = useState<InventoryItem | null>(null)
   const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -239,6 +285,75 @@ export default function InventoryPage() {
           Add to {LOCATION_LABELS[location]}
         </button>
       </div>
+
+      {/* Scan to add */}
+      <div className="mt-4 bg-white rounded-xl p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-meal-charcoal mb-2">Scan Items</h3>
+        <p className="text-xs text-meal-muted mb-3">Take a photo of your shelf, fridge, or pantry — AI identifies everything and adds it.</p>
+        <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+          scanning ? "bg-meal-warm text-meal-muted" : "bg-meal-coral text-white hover:bg-meal-coral/80"
+        }`}>
+          {scanning ? (
+            <>
+              <div className="w-4 h-4 border-2 border-meal-coral border-t-transparent rounded-full animate-spin" />
+              Scanning...
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+              </svg>
+              Snap a Photo
+            </>
+          )}
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScan} disabled={scanning} />
+        </label>
+      </div>
+
+      {/* Scanned results */}
+      {scannedItems && (
+        <div className="mt-4 bg-white rounded-xl p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-meal-charcoal mb-1">Found {scannedItems.length} items</h3>
+          <p className="text-xs text-meal-muted mb-3">Uncheck any you don&apos;t want to add.</p>
+          <div className="space-y-1 mb-4">
+            {scannedItems.map((item, i) => (
+              <button
+                key={i}
+                onClick={() => toggleScannedItem(i)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  item.selected ? "bg-meal-cream" : "bg-meal-warm/30 opacity-50"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                  item.selected ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
+                }`}>
+                  {item.selected && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                </div>
+                <span className="flex-1 text-sm text-meal-charcoal">{item.name}</span>
+                <span className="text-xs text-meal-muted">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setScannedItems(null)}
+              className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
+              Cancel
+            </button>
+            <button
+              onClick={saveScannedItems}
+              disabled={savingScanned || !scannedItems.some((i) => i.selected)}
+              className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+            >
+              {savingScanned ? "Adding..." : `Add ${scannedItems.filter((i) => i.selected).length} Items`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast: removed item */}
       {toast?.visible && (
