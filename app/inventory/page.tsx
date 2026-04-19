@@ -110,6 +110,24 @@ export default function InventoryPage() {
   const typeOrder = ["batch_cook", "frozen_meal", "ready_meal", "ingredient"]
   const sortedGroups = typeOrder.filter((t) => grouped[t]?.length).map((t) => ({ type: t, items: grouped[t] }))
 
+  function compressImage(file: File, maxWidth = 1600, quality = 0.7): Promise<Blob> {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement("canvas")
+        let w = img.width
+        let h = img.height
+        if (w > maxWidth) { h = (h * maxWidth) / w; w = maxWidth }
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext("2d")!
+        ctx.drawImage(img, 0, 0, w, h)
+        canvas.toBlob((blob) => resolve(blob || file), "image/jpeg", quality)
+      }
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files || files.length === 0) return
@@ -118,7 +136,8 @@ export default function InventoryPage() {
     setScanError("")
     const formData = new FormData()
     for (let i = 0; i < files.length; i++) {
-      formData.append("images", files[i])
+      const compressed = await compressImage(files[i])
+      formData.append("images", compressed, `photo-${i}.jpg`)
     }
     formData.append("location", location)
     try {

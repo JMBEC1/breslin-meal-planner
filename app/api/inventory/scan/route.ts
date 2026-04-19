@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   // Build content array with all images
   type MediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp"
   const contentParts: { type: "image"; source: { type: "base64"; media_type: MediaType; data: string } }[] = []
+
   for (const file of files) {
     const bytes = await file.arrayBuffer()
     const base64 = Buffer.from(bytes).toString("base64")
