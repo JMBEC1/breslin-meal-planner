@@ -71,8 +71,12 @@ export default function PlanPage() {
   const [selectedIngredients, setSelectedIngredients] = useState<string[]>([])
   const [cookToast, setCookToast] = useState<{ message: string; visible: boolean } | null>(null)
   const [cookingSlot, setCookingSlot] = useState<string | null>(null)
+  const [cookModal, setCookModal] = useState<{ day: DayOfWeek; mealType: MealType; recipeIds: number[]; title: string; isGF: boolean } | null>(null)
+  const [cookPortions, setCookPortions] = useState("4")
+  const [cookEating, setCookEating] = useState("4")
+  const [cookSaving, setCookSaving] = useState(false)
 
-  async function markCooked(day: DayOfWeek, mealType: MealType) {
+  function markCooked(day: DayOfWeek, mealType: MealType) {
     const slot = getSlot(day, mealType)
     if (!slot) return
     const ids: number[] = []
@@ -80,25 +84,58 @@ export default function PlanPage() {
     if (slot.side_ids) ids.push(...slot.side_ids)
     if (ids.length === 0) return
 
-    const key = `${day}-${mealType}`
-    setCookingSlot(key)
+    const recipe = slot.recipe_id ? recipes[slot.recipe_id] : null
+    const title = recipe?.title || slot.custom_text || "Meal"
+    const servings = recipe?.servings || 4
+    setCookPortions(String(servings))
+    setCookEating(String(servings))
+    setCookModal({ day, mealType, recipeIds: ids, title, isGF: recipe?.is_gluten_free ?? true })
+  }
+
+  async function confirmCooked() {
+    if (!cookModal) return
+    setCookSaving(true)
+
+    // 1. Deduct ingredients from inventory
     const res = await fetch("/api/inventory/cook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipe_ids: ids }),
+      body: JSON.stringify({ recipe_ids: cookModal.recipeIds }),
     })
-    if (res.ok) {
-      const data = await res.json()
-      const count = data.deducted?.length || 0
-      setCookToast({
-        message: count > 0
-          ? `Deducted ${count} item${count !== 1 ? "s" : ""} from inventory`
-          : "No matching items in inventory to deduct",
-        visible: true,
+    const data = res.ok ? await res.json() : { deducted: [] }
+    const count = data.deducted?.length || 0
+
+    // 2. Freeze leftover portions
+    const total = parseInt(cookPortions) || 0
+    const eating = parseInt(cookEating) || 0
+    const freezing = Math.max(0, total - eating)
+
+    if (freezing > 0) {
+      await fetch("/api/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: cookModal.title,
+          location: "freezer",
+          item_type: "batch_cook",
+          quantity: String(freezing),
+          unit: "portions",
+          servings: freezing,
+          is_gluten_free: cookModal.isGF,
+          notes: `Batch cooked from ${cookModal.title}`,
+        }),
       })
-      setTimeout(() => setCookToast(null), 4000)
     }
-    setCookingSlot(null)
+
+    setCookSaving(false)
+    setCookModal(null)
+    setCookToast({
+      message: freezing > 0
+        ? `Deducted ${count} items, froze ${freezing} portion${freezing !== 1 ? "s" : ""}`
+        : `Deducted ${count} item${count !== 1 ? "s" : ""} from inventory`,
+      visible: true,
+    })
+    setTimeout(() => setCookToast(null), 4000)
   }
 
   // Dinner generator state
@@ -1145,6 +1182,47 @@ export default function PlanPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cook modal */}
+      {cookModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
+          onClick={() => setCookModal(null)}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-meal-charcoal mb-1">Cooked: {cookModal.title}</h3>
+            <p className="text-sm text-meal-muted mb-4">Ingredients will be deducted from inventory. Made extra? Freeze the rest.</p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Total portions made</label>
+                <input type="number" value={cookPortions} onChange={(e) => setCookPortions(e.target.value)}
+                  min="1" className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Eating now</label>
+                <input type="number" value={cookEating} onChange={(e) => setCookEating(e.target.value)}
+                  min="0" className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30" />
+              </div>
+              {(parseInt(cookPortions) || 0) - (parseInt(cookEating) || 0) > 0 && (
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700 font-medium">
+                    ❄️ {(parseInt(cookPortions) || 0) - (parseInt(cookEating) || 0)} portion{(parseInt(cookPortions) || 0) - (parseInt(cookEating) || 0) !== 1 ? "s" : ""} will be saved to freezer
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setCookModal(null)}
+                className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
+                Cancel
+              </button>
+              <button onClick={confirmCooked} disabled={cookSaving}
+                className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50">
+                {cookSaving ? "Saving..." : "Done"}
+              </button>
+            </div>
           </div>
         </div>
       )}
