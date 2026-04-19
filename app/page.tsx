@@ -1373,9 +1373,12 @@ export default function PlanPage() {
             </div>
 
             {/* Leftovers — from fridge & freezer */}
-            {!pickerOpen.addSide && freezerItems.length > 0 && (
+            {!pickerOpen.addSide && (
               <div className="border-t border-meal-warm pt-3 mb-3">
                 <h4 className="text-xs font-semibold text-meal-muted uppercase mb-2">Leftovers & Frozen</h4>
+                {freezerItems.length === 0 && (
+                  <p className="text-xs text-meal-muted mb-2">None right now. Use 🍳 cooked on a meal to save portions here.</p>
+                )}
                 <div className="space-y-1">
                   {freezerItems.map((item) => (
                     <button
