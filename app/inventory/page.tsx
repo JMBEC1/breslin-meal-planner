@@ -136,7 +136,6 @@ export default function InventoryPage() {
     setScanError("")
     // Process each image separately for speed and to avoid timeouts
     const allItems: { name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean }[] = []
-    const seenNames = new Set<string>()
 
     for (let i = 0; i < files.length; i++) {
       const compressed = await compressImage(files[i])
@@ -147,13 +146,7 @@ export default function InventoryPage() {
         const res = await fetch("/api/inventory/scan", { method: "POST", body: formData })
         const data = await res.json()
         if (res.ok && data.items) {
-          for (const item of data.items) {
-            const key = item.name.toLowerCase()
-            if (!seenNames.has(key)) {
-              seenNames.add(key)
-              allItems.push(item)
-            }
-          }
+          allItems.push(...data.items)
         }
       } catch { /* continue with next image */ }
     }
