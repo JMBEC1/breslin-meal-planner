@@ -23,6 +23,7 @@ export default function InventoryPage() {
 
   // Scan state
   const [scanning, setScanning] = useState(false)
+  const [scanError, setScanError] = useState("")
   const [scannedItems, setScannedItems] = useState<{ name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean; selected: boolean }[] | null>(null)
   const [savingScanned, setSavingScanned] = useState(false)
 
@@ -110,17 +111,26 @@ export default function InventoryPage() {
   const sortedGroups = typeOrder.filter((t) => grouped[t]?.length).map((t) => ({ type: t, items: grouped[t] }))
 
   async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setScanning(true)
     setScannedItems(null)
+    setScanError("")
     const formData = new FormData()
-    formData.append("image", file)
+    for (let i = 0; i < files.length; i++) {
+      formData.append("images", files[i])
+    }
     formData.append("location", location)
-    const res = await fetch("/api/inventory/scan", { method: "POST", body: formData })
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/inventory/scan", { method: "POST", body: formData })
       const data = await res.json()
-      setScannedItems((data.items || []).map((item: { name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean }) => ({ ...item, selected: true })))
+      if (res.ok && data.items?.length > 0) {
+        setScannedItems(data.items.map((item: { name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean }) => ({ ...item, selected: true })))
+      } else {
+        setScanError(data.error || "No items found — try a clearer photo or closer up")
+      }
+    } catch {
+      setScanError("Scan failed — check your connection and try again")
     }
     setScanning(false)
     e.target.value = ""
@@ -289,26 +299,44 @@ export default function InventoryPage() {
       {/* Scan to add */}
       <div className="mt-4 bg-white rounded-xl p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-meal-charcoal mb-2">Scan Items</h3>
-        <p className="text-xs text-meal-muted mb-3">Take a photo of your shelf, fridge, or pantry — AI identifies everything and adds it.</p>
-        <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-          scanning ? "bg-meal-warm text-meal-muted" : "bg-meal-coral text-white hover:bg-meal-coral/80"
-        }`}>
-          {scanning ? (
-            <>
-              <div className="w-4 h-4 border-2 border-meal-coral border-t-transparent rounded-full animate-spin" />
-              Scanning...
-            </>
-          ) : (
-            <>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-              </svg>
-              Snap a Photo
-            </>
-          )}
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScan} disabled={scanning} />
-        </label>
+        <p className="text-xs text-meal-muted mb-3">Snap photos of your shelves — AI reads the labels and adds everything. Multiple photos welcome!</p>
+        <div className="flex gap-2">
+          <label className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+            scanning ? "bg-meal-warm text-meal-muted" : "bg-meal-coral text-white hover:bg-meal-coral/80"
+          }`}>
+            {scanning ? (
+              <>
+                <div className="w-4 h-4 border-2 border-meal-coral border-t-transparent rounded-full animate-spin" />
+                Scanning...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                </svg>
+                Take Photo
+              </>
+            )}
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScan} disabled={scanning} />
+          </label>
+          <label className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+            scanning ? "bg-meal-warm text-meal-muted" : "bg-meal-warm text-meal-charcoal hover:bg-meal-warm/80"
+          }`}>
+            {scanning ? "..." : (
+              <>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                </svg>
+                Upload Photos
+              </>
+            )}
+            <input type="file" accept="image/*" multiple className="hidden" onChange={handleScan} disabled={scanning} />
+          </label>
+        </div>
+        {scanError && (
+          <div className="mt-2 p-3 bg-red-50 rounded-lg text-sm text-red-600">{scanError}</div>
+        )}
       </div>
 
       {/* Scanned results */}
