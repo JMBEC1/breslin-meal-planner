@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getMealPlan, getRecipe, getShoppingList, upsertShoppingList, getStaples } from "@/lib/db"
+import { getMealPlan, getRecipe, getShoppingList, upsertShoppingList, getStaples, getInventory } from "@/lib/db"
 import { aggregateIngredients } from "@/lib/shopping"
 import type { Ingredient, MealSlot } from "@/types"
 
@@ -39,6 +39,18 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
         from_recipe_ids: [],
         is_staple: true,
       })
+    }
+  }
+
+  // Smart subtraction — flag items already in inventory
+  const inventory = await getInventory()
+  for (const item of items) {
+    const key = item.name.toLowerCase()
+    const match = inventory.find((inv) => inv.name.toLowerCase() === key || key.includes(inv.name.toLowerCase()) || inv.name.toLowerCase().includes(key))
+    if (match) {
+      item.in_inventory = true
+      const loc = match.location.charAt(0).toUpperCase() + match.location.slice(1)
+      item.inventory_note = `${match.quantity}${match.unit ? " " + match.unit : ""} in ${loc}`
     }
   }
 

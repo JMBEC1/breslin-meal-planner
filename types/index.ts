@@ -118,6 +118,8 @@ export interface ShoppingItem {
   checked: boolean
   from_recipe_ids: number[]
   is_staple: boolean
+  in_inventory?: boolean
+  inventory_note?: string
 }
 
 export interface ShoppingList {
@@ -146,6 +148,39 @@ export interface RecipeRatingSummary {
   avg_enjoyment: Record<FamilyMember, number | null>
   avg_ease: number | null
   ratings: Rating[]
+}
+
+// ── Inventory ───────────────────────────────────────────────────────────────
+
+export type InventoryLocation = "freezer" | "fridge" | "pantry"
+export type InventoryItemType = "ingredient" | "frozen_meal" | "ready_meal" | "batch_cook"
+
+export const LOCATION_LABELS: Record<InventoryLocation, string> = {
+  freezer: "Freezer",
+  fridge: "Fridge",
+  pantry: "Pantry",
+}
+
+export interface InventoryItem {
+  id: number
+  name: string
+  location: InventoryLocation
+  item_type: InventoryItemType
+  quantity: string
+  unit: string
+  aisle: AisleCategory
+  recipe_id: number | null
+  servings: number | null
+  is_gluten_free: boolean
+  notes: string | null
+  added_at: string
+  expires_at: string | null
+}
+
+export interface NeedItem {
+  id: number
+  name: string
+  added_at: string
 }
 
 // ── Staples ─────────────────────────────────────────────────────────────────

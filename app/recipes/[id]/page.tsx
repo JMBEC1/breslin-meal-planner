@@ -14,6 +14,11 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
   const router = useRouter()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [batchTotal, setBatchTotal] = useState("")
+  const [batchEating, setBatchEating] = useState("4")
+  const [batchSaving, setBatchSaving] = useState(false)
+  const [batchDone, setBatchDone] = useState(false)
 
   useEffect(() => {
     fetch(`/api/recipes/${id}`)
@@ -172,11 +177,79 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Actions */}
       <div className="flex gap-3 pt-4 border-t border-meal-warm">
+        <button
+          onClick={() => { setBatchOpen(true); setBatchTotal(String(recipe.servings || 6)); setBatchDone(false) }}
+          className="px-4 py-2 rounded-lg text-sm font-medium text-meal-sage bg-meal-sage/10 hover:bg-meal-sage/20 transition-colors"
+        >
+          I Made This
+        </button>
         <button onClick={handleDelete}
           className="px-4 py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
           Delete
         </button>
       </div>
+
+      {/* Batch Cook Modal */}
+      {batchOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
+          onClick={() => setBatchOpen(false)}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-meal-charcoal mb-2">I Made This!</h3>
+            <p className="text-sm text-meal-muted mb-4">How many portions? Freeze the leftovers for later.</p>
+
+            {!batchDone ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-meal-charcoal mb-1">Total portions made</label>
+                  <input type="number" value={batchTotal} onChange={(e) => setBatchTotal(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-meal-charcoal mb-1">Eating now</label>
+                  <input type="number" value={batchEating} onChange={(e) => setBatchEating(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
+                </div>
+                <div className="p-3 rounded-lg bg-meal-sage/10">
+                  <p className="text-sm text-meal-sage font-medium">
+                    Freezing: {Math.max(0, (Number(batchTotal) || 0) - (Number(batchEating) || 0))} portions
+                  </p>
+                </div>
+                <button
+                  disabled={batchSaving || (Number(batchTotal) || 0) - (Number(batchEating) || 0) <= 0}
+                  onClick={async () => {
+                    setBatchSaving(true)
+                    await fetch("/api/inventory/batch-cook", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        recipe_id: recipe.id,
+                        total_portions: Number(batchTotal),
+                        eating_now: Number(batchEating),
+                      }),
+                    })
+                    setBatchSaving(false)
+                    setBatchDone(true)
+                  }}
+                  className="w-full py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+                >
+                  {batchSaving ? "Saving..." : "Save to Freezer"}
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <div className="text-3xl mb-2">❄️</div>
+                <p className="text-sm font-medium text-meal-charcoal">Saved to freezer!</p>
+                <p className="text-xs text-meal-muted mt-1">Find it in Pantry → Freezer</p>
+                <button onClick={() => setBatchOpen(false)}
+                  className="mt-4 px-4 py-2 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

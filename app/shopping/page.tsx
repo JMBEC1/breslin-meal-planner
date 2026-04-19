@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
-import { AISLE_LABELS } from "@/types"
-import type { ShoppingItem, AisleCategory, Staple } from "@/types"
+import { AISLE_LABELS, LOCATION_LABELS } from "@/types"
+import type { ShoppingItem, AisleCategory, Staple, NeedItem, InventoryLocation } from "@/types"
 
 function getMonday(date: Date): string {
   const d = new Date(date)
@@ -25,45 +25,40 @@ export default function ShoppingPage() {
   const [newItem, setNewItem] = useState("")
   const [copied, setCopied] = useState(false)
 
-  // "Things we need" — persistent extras list (stored in localStorage)
-  const [needItems, setNeedItems] = useState<string[]>([])
+  // Things We Need — now database-backed
+  const [needItems, setNeedItems] = useState<NeedItem[]>([])
   const [newNeedItem, setNewNeedItem] = useState("")
   const [showNeeds, setShowNeeds] = useState(true)
 
-  // Load needs from localStorage
+  // Load needs from database
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("breslin-needs")
-      if (stored) setNeedItems(JSON.parse(stored))
-    } catch { /* ignore */ }
+    fetch("/api/needs").then((r) => r.ok ? r.json() : []).then(setNeedItems)
   }, [])
 
-  function saveNeeds(updated: string[]) {
-    setNeedItems(updated)
-    localStorage.setItem("breslin-needs", JSON.stringify(updated))
-  }
-
-  function addNeedItem() {
+  async function addNeedItem() {
     if (!newNeedItem.trim()) return
-    const updated = [...needItems, newNeedItem.trim()]
-    saveNeeds(updated)
+    const res = await fetch("/api/needs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newNeedItem.trim() }),
+    })
+    if (res.ok) {
+      const need = await res.json()
+      setNeedItems((prev) => [need, ...prev])
+    }
     setNewNeedItem("")
   }
 
-  function removeNeedItem(index: number) {
-    saveNeeds(needItems.filter((_, i) => i !== index))
+  async function removeNeedItem(id: number) {
+    await fetch(`/api/needs/${id}`, { method: "DELETE" })
+    setNeedItems((prev) => prev.filter((n) => n.id !== id))
   }
 
-  function addNeedToShoppingList(item: string, index: number) {
+  function addNeedToShoppingList(need: NeedItem) {
     if (!planId) return
     const shopItem: ShoppingItem = {
-      name: item,
-      quantity: "1",
-      unit: "",
-      aisle: "other",
-      checked: false,
-      from_recipe_ids: [],
-      is_staple: false,
+      name: need.name, quantity: "1", unit: "", aisle: "other",
+      checked: false, from_recipe_ids: [], is_staple: false,
     }
     const updated = [...items, shopItem]
     setItems(updated)
@@ -72,29 +67,24 @@ export default function ShoppingPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan_id: planId, items: updated }),
     })
-    // Remove from needs
-    removeNeedItem(index)
+    removeNeedItem(need.id)
   }
 
-  function addAllNeedsToShoppingList() {
+  async function addAllNeedsToShoppingList() {
     if (!planId || needItems.length === 0) return
-    const newShopItems: ShoppingItem[] = needItems.map((name) => ({
-      name,
-      quantity: "1",
-      unit: "",
-      aisle: "other",
-      checked: false,
-      from_recipe_ids: [],
-      is_staple: false,
+    const newShopItems: ShoppingItem[] = needItems.map((n) => ({
+      name: n.name, quantity: "1", unit: "", aisle: "other",
+      checked: false, from_recipe_ids: [], is_staple: false,
     }))
     const updated = [...items, ...newShopItems]
     setItems(updated)
-    fetch("/api/shopping", {
+    await fetch("/api/shopping", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan_id: planId, items: updated }),
     })
-    saveNeeds([])
+    await fetch("/api/needs", { method: "DELETE" })
+    setNeedItems([])
   }
 
   const fetchList = useCallback(async () => {
@@ -125,13 +115,8 @@ export default function ShoppingPage() {
   async function addCustomItem() {
     if (!newItem.trim() || !planId) return
     const item: ShoppingItem = {
-      name: newItem.trim(),
-      quantity: "1",
-      unit: "",
-      aisle: "other",
-      checked: false,
-      from_recipe_ids: [],
-      is_staple: false,
+      name: newItem.trim(), quantity: "1", unit: "", aisle: "other",
+      checked: false, from_recipe_ids: [], is_staple: false,
     }
     const updated = [...items, item]
     setItems(updated)
@@ -151,15 +136,23 @@ export default function ShoppingPage() {
     }
   }
 
-  // Group by aisle
-  const grouped = items.reduce<Record<string, (ShoppingItem & { _index: number })[]>>((acc, item, i) => {
+  // Group by aisle — separate inventory items
+  const regularItems: (ShoppingItem & { _index: number })[] = []
+  const inventoryItems: (ShoppingItem & { _index: number })[] = []
+  items.forEach((item, i) => {
+    const entry = { ...item, _index: i }
+    if (item.in_inventory) inventoryItems.push(entry)
+    else regularItems.push(entry)
+  })
+
+  const grouped = regularItems.reduce<Record<string, (ShoppingItem & { _index: number })[]>>((acc, item) => {
     const aisle = item.aisle || "other"
     if (!acc[aisle]) acc[aisle] = []
-    acc[aisle].push({ ...item, _index: i })
+    acc[aisle].push(item)
     return acc
   }, {})
 
-  const uncheckedCount = items.filter((i) => !i.checked).length
+  const uncheckedCount = regularItems.filter((i) => !i.checked).length
 
   return (
     <div className="max-w-2xl mx-auto px-4 md:px-6 py-6">
@@ -185,17 +178,15 @@ export default function ShoppingPage() {
         {showNeeds && (
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <p className="text-xs text-meal-muted mb-3">
-              Ran out of something? Add it here anytime. Move items to your shopping list when you&apos;re ready.
+              Ran out of something? Add it here — syncs across all devices.
             </p>
-
-            {/* Add need item */}
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
                 value={newNeedItem}
                 onChange={(e) => setNewNeedItem(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addNeedItem()}
-                placeholder="e.g. Olive oil, Paper towels, Dishwasher tablets..."
+                placeholder="e.g. Olive oil, Paper towels..."
                 className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
               />
               <button onClick={addNeedItem} disabled={!newNeedItem.trim()}
@@ -209,22 +200,19 @@ export default function ShoppingPage() {
             ) : (
               <>
                 <div className="space-y-1 mb-3">
-                  {needItems.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
-                      <span className="flex-1 text-sm text-meal-charcoal">{item}</span>
+                  {needItems.map((need) => (
+                    <div key={need.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
+                      <span className="flex-1 text-sm text-meal-charcoal">{need.name}</span>
                       {planId && (
                         <button
-                          onClick={() => addNeedToShoppingList(item, i)}
+                          onClick={() => addNeedToShoppingList(need)}
                           className="text-[10px] font-medium text-meal-sage hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Add to shopping list"
                         >
                           + List
                         </button>
                       )}
-                      <button
-                        onClick={() => removeNeedItem(i)}
-                        className="text-meal-muted hover:text-red-500 transition-colors"
-                      >
+                      <button onClick={() => removeNeedItem(need.id)}
+                        className="text-meal-muted hover:text-red-500 transition-colors">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -233,10 +221,8 @@ export default function ShoppingPage() {
                   ))}
                 </div>
                 {planId && (
-                  <button
-                    onClick={addAllNeedsToShoppingList}
-                    className="w-full py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
-                  >
+                  <button onClick={addAllNeedsToShoppingList}
+                    className="w-full py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors">
                     Add All to Shopping List
                   </button>
                 )}
@@ -250,9 +236,7 @@ export default function ShoppingPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-meal-charcoal">Shopping List</h1>
-          <p className="text-sm text-meal-muted mt-0.5">
-            {uncheckedCount} items remaining
-          </p>
+          <p className="text-sm text-meal-muted mt-0.5">{uncheckedCount} items remaining</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -312,98 +296,93 @@ export default function ShoppingPage() {
                       {item.unit && <span className="font-medium"> {item.unit}</span>}
                       {" "}{item.name}
                     </span>
-                    {item.is_staple && (
-                      <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>
-                    )}
+                    {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
                   </button>
                 ))}
               </div>
             </div>
           ))}
+
+          {/* Already Have section */}
+          {inventoryItems.length > 0 && (
+            <div>
+              <h2 className="text-xs font-semibold text-meal-sage uppercase tracking-wider mb-2">
+                Already Have
+              </h2>
+              <div className="bg-meal-sage/5 rounded-xl overflow-hidden border border-meal-sage/20">
+                {inventoryItems.map((item) => (
+                  <div
+                    key={item._index}
+                    className="flex items-center gap-3 px-4 py-3 border-b border-meal-sage/10 last:border-0 opacity-60"
+                  >
+                    <svg className="w-4 h-4 text-meal-sage shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <span className="flex-1 text-sm text-meal-charcoal">
+                      {item.quantity && <span className="font-medium">{item.quantity}</span>}
+                      {item.unit && <span className="font-medium"> {item.unit}</span>}
+                      {" "}{item.name}
+                    </span>
+                    <span className="text-[10px] text-meal-sage font-medium">
+                      {item.inventory_note || "In stock"}
+                    </span>
+                    <button
+                      onClick={() => toggleItem(item._index)}
+                      className="text-[10px] text-meal-muted hover:text-meal-charcoal"
+                    >
+                      + need more
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Add custom item */}
       {planId && (
         <div className="mt-6 flex gap-2">
-          <input
-            type="text"
-            value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
+          <input type="text" value={newItem} onChange={(e) => setNewItem(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
             placeholder="Add item to list..."
-            className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
-          />
+            className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
           <button onClick={addCustomItem} disabled={!newItem.trim()}
-            className="px-4 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50">
-            Add
-          </button>
+            className="px-4 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50">Add</button>
         </div>
       )}
 
       {/* Copy list + store links */}
       {items.length > 0 && (
         <div className="mt-6 space-y-3">
-          {/* Copy to clipboard */}
           <button
             onClick={() => {
-              const unchecked = items.filter((i) => !i.checked)
+              const unchecked = regularItems.filter((i) => !i.checked)
               const text = unchecked.map((i) => {
                 const qty = i.quantity ? `${i.quantity}${i.unit ? " " + i.unit : ""} ` : ""
                 return `${qty}${i.name}`
               }).join("\n")
-              navigator.clipboard.writeText(text).then(() => {
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              })
+              navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
             }}
             className="w-full py-3 rounded-xl bg-white shadow-sm text-sm font-medium text-meal-charcoal hover:shadow-md transition-shadow flex items-center justify-center gap-2"
           >
             {copied ? (
-              <>
-                <svg className="w-5 h-5 text-meal-sage" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-                Copied!
-              </>
+              <><svg className="w-5 h-5 text-meal-sage" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>Copied!</>
             ) : (
-              <>
-                <svg className="w-5 h-5 text-meal-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                </svg>
-                Copy Shopping List
-              </>
+              <><svg className="w-5 h-5 text-meal-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>Copy Shopping List</>
             )}
           </button>
-
-          {/* Store links */}
           <div className="grid grid-cols-2 gap-3">
-            <a
-              href="https://www.woolworths.com.au/shop/lists"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#125B33] text-white text-sm font-medium hover:bg-[#0e4a29] transition-colors shadow-sm"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/>
-              </svg>
+            <a href="https://www.woolworths.com.au/shop/lists" target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#125B33] text-white text-sm font-medium hover:bg-[#0e4a29] transition-colors shadow-sm">
               Woolworths
             </a>
-            <a
-              href="https://www.coles.com.au/find-and-add"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#E01A22] text-white text-sm font-medium hover:bg-[#c4171e] transition-colors shadow-sm"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/>
-              </svg>
+            <a href="https://www.coles.com.au/find-and-add" target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#E01A22] text-white text-sm font-medium hover:bg-[#c4171e] transition-colors shadow-sm">
               Coles
             </a>
           </div>
-          <p className="text-xs text-meal-muted text-center">
-            Copy list above, then paste into your Woolworths or Coles shopping list
-          </p>
+          <p className="text-xs text-meal-muted text-center">Copy list above, then paste into your Woolworths or Coles shopping list</p>
         </div>
       )}
 
@@ -411,9 +390,9 @@ export default function ShoppingPage() {
       {showStaples && (
         <div className="mt-6 bg-white rounded-xl p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-meal-charcoal mb-3">Your Staples</h2>
-          <p className="text-sm text-meal-muted mb-4">Items you buy regularly. Active staples are auto-added to every shopping list.</p>
+          <p className="text-sm text-meal-muted mb-4">Active staples are auto-added to every shopping list.</p>
           {staples.length === 0 ? (
-            <p className="text-sm text-meal-muted">No staples yet. They&apos;ll build up as you shop.</p>
+            <p className="text-sm text-meal-muted">No staples yet.</p>
           ) : (
             <div className="space-y-2">
               {staples.map((s) => (
