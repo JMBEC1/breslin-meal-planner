@@ -22,6 +22,9 @@ export default function InventoryPage() {
   const [toast, setToast] = useState<{ item: InventoryItem; visible: boolean } | null>(null)
   const [bulkText, setBulkText] = useState("")
   const [showBulk, setShowBulk] = useState(false)
+  const [search, setSearch] = useState("")
+  const [allItems, setAllItems] = useState<InventoryItem[]>([])
+  const [searchLoaded, setSearchLoaded] = useState(false)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -37,6 +40,23 @@ export default function InventoryPage() {
   }, [location])
 
   useEffect(() => { fetchItems() }, [fetchItems])
+
+  // Fetch all locations when search is active
+  useEffect(() => {
+    if (!search.trim()) { setSearchLoaded(false); return }
+    let cancelled = false
+    async function fetchAll() {
+      const res = await fetch("/api/inventory")
+      if (res.ok && !cancelled) { setAllItems(await res.json()); setSearchLoaded(true) }
+    }
+    if (!searchLoaded) fetchAll()
+    return () => { cancelled = true }
+  }, [search, searchLoaded])
+
+  const searchQuery = search.trim().toLowerCase()
+  const searchResults = searchQuery
+    ? allItems.filter((item: InventoryItem) => item.name.toLowerCase().includes(searchQuery))
+    : []
 
   async function addItem() {
     if (!newName.trim()) return
@@ -245,8 +265,66 @@ export default function InventoryPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 md:px-6 py-6">
-      <h1 className="text-2xl font-bold text-meal-charcoal mb-6">Pantry</h1>
+      <h1 className="text-2xl font-bold text-meal-charcoal mb-4">Pantry</h1>
 
+      {/* Search bar */}
+      <div className="relative mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-meal-muted" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Do we have...?"
+          className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm shadow-sm"
+        />
+        {search && (
+          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-meal-muted hover:text-meal-charcoal">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Search results */}
+      {searchQuery ? (
+        <div className="mb-6">
+          {!searchLoaded ? (
+            <div className="text-center py-8 text-meal-muted text-sm">Searching...</div>
+          ) : searchResults.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-meal-muted mb-1">No &ldquo;{search.trim()}&rdquo; found anywhere.</p>
+              <p className="text-sm text-meal-sage font-medium">Looks like you need to get some!</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+              {searchResults.map((item: InventoryItem) => (
+                <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {(item.quantity !== "1" || item.unit) && (
+                        <span className="text-xs text-meal-muted">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
+                      )}
+                      <span className="text-xs text-meal-muted">{AISLE_LABELS[item.aisle as AisleCategory] || ""}</span>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    item.location === "freezer" ? "bg-blue-50 text-blue-600" :
+                    item.location === "fridge" ? "bg-green-50 text-green-600" :
+                    "bg-amber-50 text-amber-600"
+                  }`}>
+                    {item.location === "freezer" ? "❄️ Freezer" : item.location === "fridge" ? "🥬 Fridge" : "🏠 Pantry"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       {/* Location tabs */}
       <div className="flex gap-1 bg-meal-warm rounded-lg p-1 mb-6">
         {(["freezer", "fridge", "pantry"] as InventoryLocation[]).map((loc) => (
@@ -552,7 +630,11 @@ export default function InventoryPage() {
         </div>
       )}
 
+      </>
+      )}
+
       {/* Assign to plan modal */}
+
       {assignOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
           onClick={() => setAssignOpen(null)}>
