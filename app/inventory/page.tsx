@@ -25,6 +25,8 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("")
   const [allItems, setAllItems] = useState<InventoryItem[]>([])
   const [searchLoaded, setSearchLoaded] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [merging, setMerging] = useState(false)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -74,6 +76,55 @@ export default function InventoryPage() {
     setNewName("")
     setNewQty("")
     setNewUnit("")
+    fetchItems()
+  }
+
+  async function moveItem(item: InventoryItem, newLocation: InventoryLocation) {
+    await fetch(`/api/inventory/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ location: newLocation }),
+    })
+    setItems((prev) => prev.filter((i) => i.id !== item.id))
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function mergeSelected() {
+    if (selectedIds.size < 2) return
+    setMerging(true)
+    const selected = items.filter((i) => selectedIds.has(i.id))
+    const keeper = selected[0]
+    const others = selected.slice(1)
+
+    // Sum numeric quantities
+    let totalQty = parseFloat(keeper.quantity) || 0
+    for (const item of others) {
+      totalQty += parseFloat(item.quantity) || 0
+    }
+    const newQtyStr = totalQty > 0 ? String(totalQty) : keeper.quantity
+
+    // Update keeper with merged quantity
+    await fetch(`/api/inventory/${keeper.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: newQtyStr }),
+    })
+
+    // Delete the others
+    for (const item of others) {
+      await fetch(`/api/inventory/${item.id}`, { method: "DELETE" })
+    }
+
+    setSelectedIds(new Set())
+    setMerging(false)
     fetchItems()
   }
 
@@ -343,6 +394,22 @@ export default function InventoryPage() {
         ))}
       </div>
 
+      {/* Merge bar */}
+      {selectedIds.size >= 2 && (
+        <div className="mb-4 flex items-center gap-3 p-3 bg-meal-sage/10 rounded-xl border border-meal-sage/20">
+          <p className="flex-1 text-sm text-meal-charcoal">{selectedIds.size} items selected</p>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-meal-muted hover:text-meal-charcoal">Clear</button>
+          <button
+            onClick={mergeSelected}
+            disabled={merging}
+            className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+          >
+            {merging ? "Merging..." : "Merge Items"}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-12 text-meal-muted">Loading...</div>
       ) : items.length === 0 ? (
@@ -359,7 +426,20 @@ export default function InventoryPage() {
               </h2>
               <div className="bg-white rounded-xl overflow-hidden shadow-sm">
                 {groupItems.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0">
+                  <div key={item.id} className={`flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0 ${selectedIds.has(item.id) ? "bg-meal-sage/5" : ""}`}>
+                    {/* Select checkbox for merging */}
+                    <button
+                      onClick={() => toggleSelect(item.id)}
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        selectedIds.has(item.id) ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
+                      }`}
+                    >
+                      {selectedIds.has(item.id) && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
                       {editingId === item.id ? (
@@ -398,6 +478,16 @@ export default function InventoryPage() {
                         Plan
                       </button>
                     )}
+                    {/* Move */}
+                    <select
+                      value={item.location}
+                      onChange={(e) => moveItem(item, e.target.value as InventoryLocation)}
+                      className="text-[10px] px-1.5 py-1 rounded bg-meal-cream border border-meal-warm text-meal-charcoal focus:outline-none"
+                    >
+                      <option value="fridge">🥬 Fridge</option>
+                      <option value="freezer">❄️ Freezer</option>
+                      <option value="pantry">🏠 Pantry</option>
+                    </select>
                     {/* Remove */}
                     <button
                       onClick={() => removeItem(item)}

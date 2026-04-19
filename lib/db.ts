@@ -656,12 +656,13 @@ export async function insertInventoryItem(data: {
   return parseInventoryItem(db.prepare("SELECT * FROM inventory WHERE id = ?").get(result.lastInsertRowid) as InventoryRow)
 }
 
-export async function updateInventoryItem(id: number, data: { servings?: number; quantity?: string; notes?: string }) {
+export async function updateInventoryItem(id: number, data: { servings?: number; quantity?: string; notes?: string; location?: string }) {
   if (USE_NEON) {
     const sql = await getNeon()
     if (data.servings !== undefined) await sql`UPDATE inventory SET servings = ${data.servings} WHERE id = ${id}`
     if (data.quantity !== undefined) await sql`UPDATE inventory SET quantity = ${data.quantity} WHERE id = ${id}`
     if (data.notes !== undefined) await sql`UPDATE inventory SET notes = ${data.notes} WHERE id = ${id}`
+    if (data.location !== undefined) await sql`UPDATE inventory SET location = ${data.location} WHERE id = ${id}`
     const rows = await sql`SELECT * FROM inventory WHERE id = ${id}`
     return rows.length ? parseInventoryItem(rows[0] as InventoryRow) : null
   }
@@ -669,6 +670,7 @@ export async function updateInventoryItem(id: number, data: { servings?: number;
   if (data.servings !== undefined) db.prepare("UPDATE inventory SET servings = ? WHERE id = ?").run(data.servings, id)
   if (data.quantity !== undefined) db.prepare("UPDATE inventory SET quantity = ? WHERE id = ?").run(data.quantity, id)
   if (data.notes !== undefined) db.prepare("UPDATE inventory SET notes = ? WHERE id = ?").run(data.notes, id)
+  if (data.location !== undefined) db.prepare("UPDATE inventory SET location = ? WHERE id = ?").run(data.location, id)
   const row = db.prepare("SELECT * FROM inventory WHERE id = ?").get(id) as InventoryRow | undefined
   return row ? parseInventoryItem(row) : null
 }
