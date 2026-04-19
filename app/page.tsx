@@ -932,7 +932,7 @@ export default function PlanPage() {
 
             {/* Lunchbox mode description */}
             {lunchMode === "lunchbox" && (
-              <p className="text-xs text-meal-muted mb-3">Builds lunch boxes from your saved items (fruit, veg, snacks, mains). Jude gets any main, Etta gets GF only. Manage items on the Recipes page.</p>
+              <p className="text-xs text-meal-muted mb-3">Picks fruit, veg and snacks from your inventory. Mains come from your saved favourites (Recipes page → Lunch Box Items). Jude gets any main, Etta gets GF only.</p>
             )}
 
             {/* Inspiration — AI modes only */}

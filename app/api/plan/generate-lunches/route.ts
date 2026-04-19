@@ -26,14 +26,18 @@ function pickRandom<T>(arr: T[], count: number): T[] {
 export async function POST(req: NextRequest) {
   const { mode, inspiration, swapIndex } = await req.json()
 
-  // ── Lunch Box mode — build structured boxes from components ──
+  // ── Lunch Box mode — build structured boxes from inventory + saved mains ──
   if (mode === "lunchbox") {
-    const allItems = await getCheatMeals()
-    const fruits = allItems.filter((i) => i.category === "lunch-fruit")
-    const vegs = allItems.filter((i) => i.category === "lunch-veg")
-    const snacks = allItems.filter((i) => i.category === "lunch-snack")
-    const mains = allItems.filter((i) => i.category === "lunch-main")
-    const judeOptions = mains.filter((i) => !i.is_gluten_free || true) // Jude can eat anything
+    // Pull fruit/veg/snacks from actual inventory
+    const inventory = await getInventory()
+    const fruits = inventory.filter((i) => i.aisle === "fruit-veg" && /apple|banana|grape|mandarin|orange|pear|strawberr|blueberr|kiwi|watermelon|mango|plum|peach|cherry|nectarine/i.test(i.name))
+    const vegs = inventory.filter((i) => i.aisle === "fruit-veg" && /carrot|cucumber|celery|capsicum|tomato|pepper|broccoli|corn|pea|bean|lettuce|spinach|avocado/i.test(i.name))
+    const snacks = inventory.filter((i) => ["snacks", "bakery", "health-foods"].includes(i.aisle))
+
+    // Pull mains from saved favourites (cheat_meals with lunch-main category)
+    const allFavs = await getCheatMeals()
+    const mains = allFavs.filter((i) => i.category === "lunch-main")
+    const judeOptions = mains // Jude can eat anything
     const ettaOptions = mains.filter((i) => i.is_gluten_free) // Etta GF only
 
     const count = swapIndex !== undefined ? 1 : 5
