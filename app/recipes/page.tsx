@@ -14,7 +14,7 @@ export default function RecipesPage() {
   const [gfOnly, setGfOnly] = useState(false)
 
   // Cheat meals
-  const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; is_gluten_free: boolean }[]>([])
+  const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; category: string; is_gluten_free: boolean }[]>([])
   const [showCheats, setShowCheats] = useState(false)
   const [newCheat, setNewCheat] = useState("")
   const [newCheatGF, setNewCheatGF] = useState(true)
