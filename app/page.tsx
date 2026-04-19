@@ -64,6 +64,37 @@ export default function PlanPage() {
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
   const [freezerItems, setFreezerItems] = useState<{ id: number; name: string; servings: number | null; item_type: string }[]>([])
+  const [cookToast, setCookToast] = useState<{ message: string; visible: boolean } | null>(null)
+  const [cookingSlot, setCookingSlot] = useState<string | null>(null)
+
+  async function markCooked(day: DayOfWeek, mealType: MealType) {
+    const slot = getSlot(day, mealType)
+    if (!slot) return
+    const ids: number[] = []
+    if (slot.recipe_id) ids.push(slot.recipe_id)
+    if (slot.side_ids) ids.push(...slot.side_ids)
+    if (ids.length === 0) return
+
+    const key = `${day}-${mealType}`
+    setCookingSlot(key)
+    const res = await fetch("/api/inventory/cook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipe_ids: ids }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      const count = data.deducted?.length || 0
+      setCookToast({
+        message: count > 0
+          ? `Deducted ${count} item${count !== 1 ? "s" : ""} from inventory`
+          : "No matching items in inventory to deduct",
+        visible: true,
+      })
+      setTimeout(() => setCookToast(null), 4000)
+    }
+    setCookingSlot(null)
+  }
 
   // Dinner generator state
   const [dinnerGenOpen, setDinnerGenOpen] = useState(false)
@@ -641,6 +672,13 @@ export default function PlanPage() {
                         )}
                         {(slot?.recipe_id || slot?.custom_text) && (
                           <div className="flex gap-2 mt-0.5">
+                            {slot?.recipe_id && (
+                              <button onClick={(e) => { e.stopPropagation(); markCooked(day, mealType) }}
+                                disabled={cookingSlot === `${day}-${mealType}`}
+                                className="text-[10px] text-meal-coral hover:text-meal-coral/80 disabled:opacity-50" title="Mark as cooked">
+                                {cookingSlot === `${day}-${mealType}` ? "..." : "🍳 cooked"}
+                              </button>
+                            )}
                             <button onClick={(e) => { e.stopPropagation(); openPicker(day, mealType) }}
                               className="text-[10px] text-meal-sage hover:text-meal-sageHover" title="Swap meal">
                               <svg className="w-3 h-3 inline mr-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -718,6 +756,13 @@ export default function PlanPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
+                          {slot?.recipe_id && (
+                            <button onClick={(e) => { e.stopPropagation(); markCooked(day, mealType) }}
+                              disabled={cookingSlot === `${day}-${mealType}`}
+                              className="text-[10px] text-meal-coral font-medium px-1 disabled:opacity-50">
+                              {cookingSlot === `${day}-${mealType}` ? "..." : "🍳"}
+                            </button>
+                          )}
                           {(slot?.recipe_id || slot?.custom_text) && (
                             <button onClick={(e) => { e.stopPropagation(); openPicker(day, mealType, true) }}
                               className="text-[10px] text-meal-sage font-medium px-1">
@@ -1092,6 +1137,19 @@ export default function PlanPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Cook toast */}
+      {cookToast?.visible && (
+        <div className="fixed bottom-24 md:bottom-8 left-4 right-4 md:left-auto md:right-8 md:w-80 bg-meal-charcoal text-white rounded-xl p-4 shadow-lg z-50 flex items-center gap-3">
+          <span className="text-lg">🍳</span>
+          <p className="flex-1 text-sm">{cookToast.message}</p>
+          <button onClick={() => setCookToast(null)} className="text-white/60 hover:text-white">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
 
