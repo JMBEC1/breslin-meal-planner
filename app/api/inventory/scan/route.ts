@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
             text: `Look at ${files.length > 1 ? "these photos" : "this photo"} of food items, ingredients, spices, or pantry items. Identify EVERY distinct item you can see across ALL images — read labels, jar labels, packet names carefully. Zoom in mentally on small text.
 
 For each item, return:
-- name: the item name (e.g. "Curry Leaves", "Garam Masala", "Cinnamon")
+- name: the GENERIC item name — NO brand names (e.g. "Soy Sauce" not "Kikkoman Soy Sauce", "Nori Sheets" not "Sushi Nori Sea Vegetable", "Pasta" not "Barilla Penne")
 - quantity: estimated quantity if visible (e.g. "50g", "1"), otherwise "1"
 - unit: the unit if applicable (e.g. "g", "jar", "packet"), otherwise ""
 - aisle: one of: fruit-veg, meat-seafood, dairy-eggs, bakery, pantry, frozen, condiments-sauces, drinks, snacks, international, health-foods, other

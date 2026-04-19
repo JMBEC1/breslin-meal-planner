@@ -54,7 +54,7 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
     const wa = sigWords(a), wb = sigWords(b)
     if (wa.length === 0 || wb.length === 0) return false
     const shared = wa.filter((w) => wb.some((w2) => w2.includes(w) || w.includes(w2)))
-    return shared.length >= Math.min(wa.length, wb.length)
+    return shared.length >= 1 && shared.length >= Math.min(wa.length, wb.length) * 0.5
   }
   const inventory = await getInventory()
   for (const item of items) {
