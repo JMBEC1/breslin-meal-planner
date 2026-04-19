@@ -64,7 +64,7 @@ export default function PlanPage() {
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
   const [freezerItems, setFreezerItems] = useState<{ id: number; name: string; servings: number | null; item_type: string }[]>([])
-  const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; is_gluten_free: boolean }[]>([])
+  const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; category: string; is_gluten_free: boolean }[]>([])
   const [newCheat, setNewCheat] = useState("")
   const [newCheatGF, setNewCheatGF] = useState(true)
   const [cookToast, setCookToast] = useState<{ message: string; visible: boolean } | null>(null)
