@@ -13,6 +13,35 @@ export default function RecipesPage() {
   const [category, setCategory] = useState<string | null>(null)
   const [gfOnly, setGfOnly] = useState(false)
 
+  // Cheat meals
+  const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; is_gluten_free: boolean }[]>([])
+  const [showCheats, setShowCheats] = useState(false)
+  const [newCheat, setNewCheat] = useState("")
+  const [newCheatGF, setNewCheatGF] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/cheat-meals").then((r) => r.ok ? r.json() : []).then(setCheatMeals)
+  }, [])
+
+  async function addCheat() {
+    if (!newCheat.trim()) return
+    const res = await fetch("/api/cheat-meals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newCheat.trim(), is_gluten_free: newCheatGF }),
+    })
+    if (res.ok) {
+      const cm = await res.json()
+      setCheatMeals((prev) => [...prev, cm])
+    }
+    setNewCheat("")
+  }
+
+  async function removeCheat(id: number) {
+    await fetch(`/api/cheat-meals/${id}`, { method: "DELETE" })
+    setCheatMeals((prev) => prev.filter((c) => c.id !== id))
+  }
+
   const fetchRecipes = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams()
@@ -74,6 +103,71 @@ export default function RecipesPage() {
           onCategoryChange={setCategory}
           onGfChange={setGfOnly}
         />
+      </div>
+
+      {/* Cheat Meals */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowCheats(!showCheats)}
+          className="flex items-center gap-2 text-sm font-semibold text-meal-charcoal"
+        >
+          <span>🍕</span>
+          <span>Cheat Meals</span>
+          {cheatMeals.length > 0 && (
+            <span className="bg-meal-coral text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {cheatMeals.length}
+            </span>
+          )}
+          <svg className={`w-4 h-4 text-meal-muted transition-transform ${showCheats ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        {showCheats && (
+          <div className="mt-3 bg-white rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-meal-muted mb-3">Quick easy meals — no recipe needed. These show up in the meal picker too.</p>
+            {cheatMeals.length > 0 && (
+              <div className="space-y-1 mb-3">
+                {cheatMeals.map((cm) => (
+                  <div key={cm.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
+                    <span className="text-sm">🍕</span>
+                    <span className="flex-1 text-sm text-meal-charcoal">{cm.name}</span>
+                    {cm.is_gluten_free ? (
+                      <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                    )}
+                    <button onClick={() => removeCheat(cm.id)}
+                      className="text-meal-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCheat}
+                onChange={(e) => setNewCheat(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addCheat()}
+                placeholder="e.g. Pasta & sauce, Fish fingers & chips..."
+                className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+              />
+              <button
+                onClick={() => setNewCheatGF(!newCheatGF)}
+                className={`px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 ${newCheatGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"}`}
+              >
+                {newCheatGF ? "GF" : "Gluten"}
+              </button>
+              <button onClick={addCheat} disabled={!newCheat.trim()}
+                className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50 shrink-0">
+                Add
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Grid */}
