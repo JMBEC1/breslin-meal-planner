@@ -23,6 +23,8 @@ export default function ShoppingPage() {
   const [staples, setStaples] = useState<Staple[]>([])
   const [showStaples, setShowStaples] = useState(false)
   const [newItem, setNewItem] = useState("")
+  const [newItemQty, setNewItemQty] = useState("")
+  const [newItemUnit, setNewItemUnit] = useState("")
   const [copied, setCopied] = useState(false)
 
   // Things We Need — now database-backed
@@ -120,12 +122,14 @@ export default function ShoppingPage() {
   async function addCustomItem() {
     if (!newItem.trim() || !planId) return
     const item: ShoppingItem = {
-      name: newItem.trim(), quantity: "1", unit: "", aisle: "other",
+      name: newItem.trim(), quantity: newItemQty || "1", unit: newItemUnit, aisle: "other",
       checked: false, from_recipe_ids: [], is_staple: false,
     }
     const updated = [...items, item]
     setItems(updated)
     setNewItem("")
+    setNewItemQty("")
+    setNewItemUnit("")
     await fetch("/api/shopping", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -310,6 +314,14 @@ export default function ShoppingPage() {
             onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
             placeholder="Add item..."
             className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
+          <input type="text" value={newItemQty} onChange={(e) => setNewItemQty(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
+            placeholder="Qty"
+            className="w-14 px-2 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm text-center" />
+          <input type="text" value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
+            placeholder="Unit"
+            className="w-14 px-2 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm text-center" />
           <button onClick={addCustomItem} disabled={!newItem.trim()}
             className="px-4 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50">Add</button>
         </div>
