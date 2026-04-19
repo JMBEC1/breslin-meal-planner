@@ -89,6 +89,7 @@ function getSqlite(): Database.Database {
     CREATE TABLE IF NOT EXISTS cheat_meals (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       name            TEXT    NOT NULL,
+      category        TEXT    NOT NULL DEFAULT 'dinner',
       is_gluten_free  INTEGER NOT NULL DEFAULT 1,
       created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
@@ -197,10 +198,13 @@ async function getNeon(): Promise<any> {
     CREATE TABLE IF NOT EXISTS cheat_meals (
       id              SERIAL PRIMARY KEY,
       name            TEXT NOT NULL,
+      category        TEXT NOT NULL DEFAULT 'dinner',
       is_gluten_free  INT  NOT NULL DEFAULT 1,
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  // Migration: add category column if missing
+  try { await sql`ALTER TABLE cheat_meals ADD COLUMN category TEXT NOT NULL DEFAULT 'dinner'` } catch { /* already exists */ }
   _neon = sql
   return sql
 }
@@ -728,28 +732,32 @@ export async function clearNeeds(): Promise<void> {
 
 // ── Cheat Meals ──────────────────────────────────────────────────────────
 
-interface CheatMealRow { id: number; name: string; is_gluten_free: number; created_at: string }
+interface CheatMealRow { id: number; name: string; category: string; is_gluten_free: number; created_at: string }
 
-export async function getCheatMeals() {
+export async function getCheatMeals(category?: string) {
   if (USE_NEON) {
     const sql = await getNeon()
-    const rows = await sql`SELECT * FROM cheat_meals ORDER BY name ASC`
+    const rows = category
+      ? await sql`SELECT * FROM cheat_meals WHERE category = ${category} ORDER BY name ASC`
+      : await sql`SELECT * FROM cheat_meals ORDER BY category ASC, name ASC`
     return (rows as CheatMealRow[]).map((r) => ({ ...r, is_gluten_free: !!r.is_gluten_free }))
   }
   const db = getSqlite()
-  const rows = db.prepare("SELECT * FROM cheat_meals ORDER BY name ASC").all() as CheatMealRow[]
+  const rows = category
+    ? db.prepare("SELECT * FROM cheat_meals WHERE category = ? ORDER BY name ASC").all(category) as CheatMealRow[]
+    : db.prepare("SELECT * FROM cheat_meals ORDER BY category ASC, name ASC").all() as CheatMealRow[]
   return rows.map((r) => ({ ...r, is_gluten_free: !!r.is_gluten_free }))
 }
 
-export async function insertCheatMeal(name: string, isGlutenFree: boolean) {
+export async function insertCheatMeal(name: string, isGlutenFree: boolean, category: string = "dinner") {
   const gf = isGlutenFree ? 1 : 0
   if (USE_NEON) {
     const sql = await getNeon()
-    const rows = await sql`INSERT INTO cheat_meals (name, is_gluten_free) VALUES (${name}, ${gf}) RETURNING *`
+    const rows = await sql`INSERT INTO cheat_meals (name, category, is_gluten_free) VALUES (${name}, ${category}, ${gf}) RETURNING *`
     return { ...rows[0], is_gluten_free: !!rows[0].is_gluten_free }
   }
   const db = getSqlite()
-  const result = db.prepare("INSERT INTO cheat_meals (name, is_gluten_free) VALUES (?, ?)").run(name, gf)
+  const result = db.prepare("INSERT INTO cheat_meals (name, category, is_gluten_free) VALUES (?, ?, ?)").run(name, category, gf)
   const row = db.prepare("SELECT * FROM cheat_meals WHERE id = ?").get(result.lastInsertRowid) as CheatMealRow
   return { ...row, is_gluten_free: !!row.is_gluten_free }
 }

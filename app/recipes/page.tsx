@@ -18,6 +18,7 @@ export default function RecipesPage() {
   const [showCheats, setShowCheats] = useState(false)
   const [newCheat, setNewCheat] = useState("")
   const [newCheatGF, setNewCheatGF] = useState(true)
+  const [newCheatCat, setNewCheatCat] = useState<"dinner" | "lunch">("dinner")
 
   useEffect(() => {
     fetch("/api/cheat-meals").then((r) => r.ok ? r.json() : []).then(setCheatMeals)
@@ -28,7 +29,7 @@ export default function RecipesPage() {
     const res = await fetch("/api/cheat-meals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newCheat.trim(), is_gluten_free: newCheatGF }),
+      body: JSON.stringify({ name: newCheat.trim(), is_gluten_free: newCheatGF, category: newCheatCat }),
     })
     if (res.ok) {
       const cm = await res.json()
@@ -125,27 +126,36 @@ export default function RecipesPage() {
         {showCheats && (
           <div className="mt-3 bg-white rounded-xl p-4 shadow-sm">
             <p className="text-xs text-meal-muted mb-3">Quick easy meals — no recipe needed. These show up in the meal picker too.</p>
-            {cheatMeals.length > 0 && (
-              <div className="space-y-1 mb-3">
-                {cheatMeals.map((cm) => (
-                  <div key={cm.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
-                    <span className="text-sm">🍕</span>
-                    <span className="flex-1 text-sm text-meal-charcoal">{cm.name}</span>
-                    {cm.is_gluten_free ? (
-                      <span className="text-[10px] font-semibold text-meal-sage">GF</span>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
-                    )}
-                    <button onClick={() => removeCheat(cm.id)}
-                      className="text-meal-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+            {(["dinner", "lunch"] as const).map((cat) => {
+              const catItems = cheatMeals.filter((cm) => cm.category === cat)
+              if (catItems.length === 0) return null
+              return (
+                <div key={cat} className="mb-3">
+                  <h4 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-1.5">
+                    {cat === "dinner" ? "Dinners" : "Lunches"}
+                  </h4>
+                  <div className="space-y-1">
+                    {catItems.map((cm) => (
+                      <div key={cm.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
+                        <span className="text-sm">🍕</span>
+                        <span className="flex-1 text-sm text-meal-charcoal">{cm.name}</span>
+                        {cm.is_gluten_free ? (
+                          <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                        )}
+                        <button onClick={() => removeCheat(cm.id)}
+                          className="text-meal-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              )
+            })}
             <div className="flex gap-2">
               <input
                 type="text"
@@ -155,6 +165,12 @@ export default function RecipesPage() {
                 placeholder="e.g. Pasta & sauce, Fish fingers & chips..."
                 className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
               />
+              <button
+                onClick={() => setNewCheatCat(newCheatCat === "dinner" ? "lunch" : "dinner")}
+                className={`px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 ${newCheatCat === "dinner" ? "bg-meal-coral/10 text-meal-coral" : "bg-meal-sky/10 text-meal-sky"}`}
+              >
+                {newCheatCat === "dinner" ? "Dinner" : "Lunch"}
+              </button>
               <button
                 onClick={() => setNewCheatGF(!newCheatGF)}
                 className={`px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 ${newCheatGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"}`}
