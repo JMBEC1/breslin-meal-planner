@@ -151,8 +151,23 @@ export default function InventoryPage() {
       } catch { /* continue with next image */ }
     }
 
-    if (allItems.length > 0) {
-      setScannedItems(allItems.map((item) => ({ ...item, selected: true })))
+    // Group duplicates by name — sum quantities
+    const grouped = new Map<string, typeof allItems[0]>()
+    for (const item of allItems) {
+      const key = item.name.toLowerCase()
+      const existing = grouped.get(key)
+      if (existing) {
+        const q1 = Number(existing.quantity) || 1
+        const q2 = Number(item.quantity) || 1
+        existing.quantity = String(q1 + q2)
+      } else {
+        grouped.set(key, { ...item })
+      }
+    }
+    const mergedItems = Array.from(grouped.values())
+
+    if (mergedItems.length > 0) {
+      setScannedItems(mergedItems.map((item) => ({ ...item, selected: true })))
     } else {
       setScanError("No items found — try clearer photos or closer up")
     }
@@ -182,6 +197,27 @@ export default function InventoryPage() {
     setSavingScanned(false)
     setScannedItems(null)
     fetchItems()
+  }
+
+  function updateScannedItem(index: number, field: "name" | "quantity" | "unit", value: string) {
+    setScannedItems((prev) => prev ? prev.map((item, i) => i === index ? { ...item, [field]: value } : item) : prev)
+  }
+
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editQty, setEditQty] = useState("")
+  const [editUnit, setEditUnit] = useState("")
+
+  async function saveEdit(id: number) {
+    await fetch(`/api/inventory/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: editQty, ...(editUnit !== undefined ? {} : {}) }),
+    })
+    // Update local state
+    setItems((prev) => prev.map((item) =>
+      item.id === id ? { ...item, quantity: editQty } : item
+    ))
+    setEditingId(null)
   }
 
   const [assignOpen, setAssignOpen] = useState<InventoryItem | null>(null)
@@ -229,15 +265,32 @@ export default function InventoryPage() {
                   <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {item.quantity !== "1" || item.unit ? (
-                          <span className="text-xs text-meal-muted">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
-                        ) : null}
-                        {item.servings && (
-                          <span className="text-xs text-meal-plum font-medium">{item.servings} portion{item.servings > 1 ? "s" : ""}</span>
-                        )}
-                        <span className="text-xs text-meal-muted">{AISLE_LABELS[item.aisle as AisleCategory] || ""}</span>
-                      </div>
+                      {editingId === item.id ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <input type="text" value={editQty} onChange={(e) => setEditQty(e.target.value)}
+                            className="w-16 px-2 py-1 rounded bg-meal-cream border border-meal-warm text-xs focus:outline-none focus:ring-1 focus:ring-meal-sage"
+                            placeholder="Qty" autoFocus />
+                          <input type="text" value={editUnit} onChange={(e) => setEditUnit(e.target.value)}
+                            className="w-16 px-2 py-1 rounded bg-meal-cream border border-meal-warm text-xs focus:outline-none focus:ring-1 focus:ring-meal-sage"
+                            placeholder="Unit" />
+                          <button onClick={() => saveEdit(item.id)}
+                            className="text-[10px] font-medium text-meal-sage">Save</button>
+                          <button onClick={() => setEditingId(null)}
+                            className="text-[10px] text-meal-muted">Cancel</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-0.5 cursor-pointer" onClick={() => { setEditingId(item.id); setEditQty(item.quantity); setEditUnit(item.unit) }}>
+                          {item.quantity !== "1" || item.unit ? (
+                            <span className="text-xs text-meal-muted hover:text-meal-sage">{item.quantity}{item.unit ? ` ${item.unit}` : ""} <span className="text-meal-sage/50">edit</span></span>
+                          ) : (
+                            <span className="text-xs text-meal-muted hover:text-meal-sage">Tap to set qty</span>
+                          )}
+                          {item.servings && (
+                            <span className="text-xs text-meal-plum font-medium">{item.servings} portion{item.servings > 1 ? "s" : ""}</span>
+                          )}
+                          <span className="text-xs text-meal-muted">{AISLE_LABELS[item.aisle as AisleCategory] || ""}</span>
+                        </div>
+                      )}
                     </div>
                     {/* Assign to plan (for meals) */}
                     {(item.item_type === "batch_cook" || item.item_type === "frozen_meal" || item.item_type === "ready_meal") && (
@@ -367,28 +420,42 @@ export default function InventoryPage() {
       {scannedItems && (
         <div className="mt-4 bg-white rounded-xl p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-meal-charcoal mb-1">Found {scannedItems.length} items</h3>
-          <p className="text-xs text-meal-muted mb-3">Uncheck any you don&apos;t want to add.</p>
-          <div className="space-y-1 mb-4">
+          <p className="text-xs text-meal-muted mb-3">Edit names or quantities, uncheck any you don&apos;t want.</p>
+          <div className="space-y-2 mb-4">
             {scannedItems.map((item, i) => (
-              <button
+              <div
                 key={i}
-                onClick={() => toggleScannedItem(i)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                   item.selected ? "bg-meal-cream" : "bg-meal-warm/30 opacity-50"
                 }`}
               >
-                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                  item.selected ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
-                }`}>
+                <button onClick={() => toggleScannedItem(i)}
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                    item.selected ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
+                  }`}>
                   {item.selected && (
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                     </svg>
                   )}
-                </div>
-                <span className="flex-1 text-sm text-meal-charcoal">{item.name}</span>
-                <span className="text-xs text-meal-muted">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
-              </button>
+                </button>
+                <input
+                  type="text" value={item.name}
+                  onChange={(e) => updateScannedItem(i, "name", e.target.value)}
+                  className="flex-1 text-sm text-meal-charcoal bg-transparent border-b border-transparent focus:border-meal-sage focus:outline-none min-w-0"
+                />
+                <input
+                  type="text" value={item.quantity}
+                  onChange={(e) => updateScannedItem(i, "quantity", e.target.value)}
+                  className="w-12 text-xs text-meal-muted text-right bg-transparent border-b border-transparent focus:border-meal-sage focus:outline-none"
+                />
+                <input
+                  type="text" value={item.unit}
+                  onChange={(e) => updateScannedItem(i, "unit", e.target.value)}
+                  className="w-10 text-xs text-meal-muted bg-transparent border-b border-transparent focus:border-meal-sage focus:outline-none"
+                  placeholder="unit"
+                />
+              </div>
             ))}
           </div>
           <div className="flex gap-2">
