@@ -303,6 +303,18 @@ export default function ShoppingPage() {
         </div>
       </div>
 
+      {/* Quick add — always visible */}
+      {planId && !loading && (
+        <div className="mb-4 flex gap-2">
+          <input type="text" value={newItem} onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
+            placeholder="Add item..."
+            className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
+          <button onClick={addCustomItem} disabled={!newItem.trim()}
+            className="px-4 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50">Add</button>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-12 text-meal-muted">Loading...</div>
       ) : items.length === 0 ? (
@@ -455,18 +467,6 @@ export default function ShoppingPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Add custom item */}
-      {planId && (
-        <div className="mt-6 flex gap-2">
-          <input type="text" value={newItem} onChange={(e) => setNewItem(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
-            placeholder="Add item to list..."
-            className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
-          <button onClick={addCustomItem} disabled={!newItem.trim()}
-            className="px-4 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50">Add</button>
         </div>
       )}
 

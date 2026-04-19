@@ -92,9 +92,36 @@ export async function GET(req: NextRequest) {
   const plan = await getMealPlan(week)
   if (!plan) return NextResponse.json({ items: [], plan_id: null })
 
-  // If refresh requested, always regenerate
+  // If refresh requested, regenerate but preserve custom items and checked state
   if (refresh) {
+    const existing = await getShoppingList(plan.id)
+    const oldItems = existing ? (typeof existing.items === "string" ? JSON.parse(existing.items) : existing.items) : []
+
+    // Save custom items (no recipe source) and checked state
+    const customItems = oldItems.filter((i: { from_recipe_ids: number[] }) => !i.from_recipe_ids || i.from_recipe_ids.length === 0)
+    const checkedNames = new Set(
+      oldItems.filter((i: { checked: boolean }) => i.checked).map((i: { name: string }) => i.name.toLowerCase())
+    )
+
     const result = await generateList(plan)
+
+    // Restore checked state on regenerated items
+    for (const item of result.items || []) {
+      if (checkedNames.has(item.name.toLowerCase())) {
+        item.checked = true
+      }
+    }
+
+    // Re-add custom items that aren't duplicates of generated ones
+    const generatedNames = new Set((result.items || []).map((i: { name: string }) => i.name.toLowerCase()))
+    for (const custom of customItems) {
+      if (!generatedNames.has(custom.name.toLowerCase())) {
+        result.items.push(custom)
+      }
+    }
+
+    // Save the merged list
+    await upsertShoppingList(plan.id, result.items)
     return NextResponse.json(result)
   }
 
