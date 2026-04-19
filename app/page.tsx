@@ -64,6 +64,9 @@ export default function PlanPage() {
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
   const [freezerItems, setFreezerItems] = useState<{ id: number; name: string; servings: number | null; item_type: string }[]>([])
+  const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; is_gluten_free: boolean }[]>([])
+  const [newCheat, setNewCheat] = useState("")
+  const [newCheatGF, setNewCheatGF] = useState(true)
   const [cookToast, setCookToast] = useState<{ message: string; visible: boolean } | null>(null)
   const [cookingSlot, setCookingSlot] = useState<string | null>(null)
 
@@ -430,6 +433,10 @@ export default function PlanPage() {
         setFreezerItems(items.filter((i: { item_type: string }) =>
           ["batch_cook", "frozen_meal", "ready_meal"].includes(i.item_type)))
       }
+    }
+    if (cheatMeals.length === 0) {
+      const res = await fetch("/api/cheat-meals")
+      if (res.ok) setCheatMeals(await res.json())
     }
   }
 
@@ -1211,6 +1218,82 @@ export default function PlanPage() {
                       )}
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cheat Meals */}
+            {!pickerOpen.addSide && (
+              <div className="border-t border-meal-warm pt-3 mb-3">
+                <h4 className="text-xs font-semibold text-meal-muted uppercase mb-2">Cheat Meals</h4>
+                {cheatMeals.length > 0 && (
+                  <div className="space-y-1 mb-2">
+                    {cheatMeals.map((cm) => (
+                      <div key={cm.id} className="flex items-center gap-2">
+                        <button
+                          onClick={() => assignRecipe(pickerOpen.day, pickerOpen.meal_type, null, cm.name)}
+                          className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
+                        >
+                          <span className="text-sm">🍕</span>
+                          <span className="flex-1 text-sm text-meal-charcoal">{cm.name}</span>
+                          {cm.is_gluten_free ? (
+                            <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            fetch(`/api/cheat-meals/${cm.id}`, { method: "DELETE" })
+                            setCheatMeals((prev) => prev.filter((c) => c.id !== cm.id))
+                          }}
+                          className="text-meal-muted hover:text-red-500 p-1 shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newCheat}
+                    onChange={(e) => setNewCheat(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newCheat.trim()) {
+                        fetch("/api/cheat-meals", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name: newCheat.trim(), is_gluten_free: newCheatGF }),
+                        }).then((r) => r.json()).then((cm) => { setCheatMeals((prev) => [...prev, cm]); setNewCheat("") })
+                      }
+                    }}
+                    placeholder="Add cheat meal..."
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-1 focus:ring-meal-sage/30 text-sm"
+                  />
+                  <button
+                    onClick={() => setNewCheatGF(!newCheatGF)}
+                    className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold shrink-0 ${newCheatGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"}`}
+                  >
+                    {newCheatGF ? "GF" : "Gluten"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!newCheat.trim()) return
+                      fetch("/api/cheat-meals", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: newCheat.trim(), is_gluten_free: newCheatGF }),
+                      }).then((r) => r.json()).then((cm) => { setCheatMeals((prev) => [...prev, cm]); setNewCheat("") })
+                    }}
+                    disabled={!newCheat.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-meal-sage text-white text-xs font-medium disabled:opacity-50 shrink-0"
+                  >
+                    Add
+                  </button>
                 </div>
               </div>
             )}
