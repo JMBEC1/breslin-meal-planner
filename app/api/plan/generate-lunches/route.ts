@@ -1,12 +1,64 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
-import { getRecipes, getAllRatings, getInventory } from "@/lib/db"
+import { getRecipes, getAllRatings, getInventory, getCheatMeals } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function pickRandom<T>(arr: T[], count: number): T[] {
+  if (arr.length === 0) return []
+  const shuffled = shuffle(arr)
+  const result: T[] = []
+  for (let i = 0; i < count; i++) {
+    result.push(shuffled[i % shuffled.length])
+  }
+  return result
+}
 
 export async function POST(req: NextRequest) {
   const { mode, inspiration, swapIndex } = await req.json()
 
+  // ── Lunch Box mode — build structured boxes from components ──
+  if (mode === "lunchbox") {
+    const allItems = await getCheatMeals()
+    const fruits = allItems.filter((i) => i.category === "lunch-fruit")
+    const vegs = allItems.filter((i) => i.category === "lunch-veg")
+    const snacks = allItems.filter((i) => i.category === "lunch-snack")
+    const mains = allItems.filter((i) => i.category === "lunch-main")
+    const judeOptions = mains.filter((i) => !i.is_gluten_free || true) // Jude can eat anything
+    const ettaOptions = mains.filter((i) => i.is_gluten_free) // Etta GF only
+
+    const count = swapIndex !== undefined ? 1 : 5
+    const boxes = []
+
+    for (let i = 0; i < count; i++) {
+      const fruit = pickRandom(fruits, 1).map((f) => f.name)
+      const veg = pickRandom(vegs, 1).map((v) => v.name)
+      const snack = pickRandom(snacks, 2).map((s) => s.name)
+      const judeMain = pickRandom(judeOptions, 1)[0]
+      const ettaMain = pickRandom(ettaOptions, 1)[0]
+
+      boxes.push({
+        fruit,
+        veg,
+        snack,
+        jude_main: judeMain?.name || "Sandwich",
+        etta_main: ettaMain?.name || "GF Sandwich",
+      })
+    }
+
+    return NextResponse.json({ lunches: boxes, mode: "lunchbox" })
+  }
+
+  // ── Legacy AI modes (stored/internet/mix) ──
   const client = getAnthropicClient()
   if (!client && mode !== "stored") {
     return NextResponse.json({ error: "AI not configured — set ANTHROPIC_API_KEY" }, { status: 500 })
@@ -27,22 +79,19 @@ export async function POST(req: NextRequest) {
     ? `\n\nIMPORTANT THEME/INSPIRATION: The family wants lunches inspired by "${inspiration.trim()}". Focus suggestions around this theme.`
     : ""
 
-  // Build inventory context so AI can suggest lunches that use up what's in stock
   const inventory = await getInventory()
   const inventoryContext = inventory.length > 0
     ? inventory.map((item) => `${item.name} (${item.quantity}${item.unit ? " " + item.unit : ""} in ${item.location})`).join(", ")
     : ""
   const inventoryNote = inventoryContext
-    ? `\n\nINVENTORY — the family currently has these items in stock. Where possible, suggest lunches that use these up (e.g. wraps with leftover chicken, sandwich with cheese from the fridge). Prioritise perishables:\n${inventoryContext}`
+    ? `\n\nINVENTORY — the family currently has these items in stock. Where possible, suggest lunches that use these up:\n${inventoryContext}`
     : ""
 
-  // Stored mode — random pick from saved school-lunch recipes
   if (mode === "stored") {
     if (recipes.length === 0) {
-      return NextResponse.json({ error: "No school lunch recipes saved yet. Add some first, or try 'internet' or 'mix' mode." }, { status: 400 })
+      return NextResponse.json({ error: "No school lunch recipes saved yet. Try 'lunchbox' mode instead." }, { status: 400 })
     }
 
-    // If inspiration + AI available, use AI to pick best matches
     if (inspiration?.trim() && client) {
       const message = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
@@ -83,27 +132,21 @@ Return ONLY valid JSON (no markdown fences):
     if (swapIndex !== undefined) {
       const pick = shuffled[0]
       return NextResponse.json({
-        lunches: [{
-          recipe_id: pick.recipe.id,
-          title: pick.recipe.title,
-          is_gluten_free: pick.recipe.is_gluten_free,
-        }],
+        lunches: [{ recipe_id: pick.recipe.id, title: pick.recipe.title, is_gluten_free: pick.recipe.is_gluten_free }],
         mode: "stored",
       })
     }
 
-    const selected = shuffled.slice(0, 5).map((item) => ({
-      recipe_id: item.recipe.id,
-      title: item.recipe.title,
-      is_gluten_free: item.recipe.is_gluten_free,
-    }))
-
-    return NextResponse.json({ lunches: selected, mode: "stored" })
+    return NextResponse.json({
+      lunches: shuffled.slice(0, 5).map((item) => ({
+        recipe_id: item.recipe.id, title: item.recipe.title, is_gluten_free: item.recipe.is_gluten_free,
+      })),
+      mode: "stored",
+    })
   }
 
-  // Internet or mix mode — use AI
+  // Internet or mix mode
   const count = swapIndex !== undefined ? "1 school lunch" : "5 school packed lunches (Monday to Friday)"
-
   const modeInstruction = mode === "internet"
     ? `Suggest ${count} that are NEW creative ideas for kids' packed school lunches. Focus on healthy, easy-to-pack, kid-approved options that travel well in a lunchbox.`
     : `Suggest ${count} using a MIX of stored recipes and new ideas. Stored lunch recipes:\n${recipeContext || "None saved yet."}`

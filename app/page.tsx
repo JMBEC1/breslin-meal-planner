@@ -150,8 +150,9 @@ export default function PlanPage() {
 
   // Lunch generator state
   const [lunchGenOpen, setLunchGenOpen] = useState(false)
-  const [lunchMode, setLunchMode] = useState<"stored" | "internet" | "mix">("mix")
+  const [lunchMode, setLunchMode] = useState<"stored" | "internet" | "mix" | "lunchbox">("lunchbox")
   const [lunchResults, setLunchResults] = useState<DinnerSuggestion[] | null>(null)
+  const [lunchBoxResults, setLunchBoxResults] = useState<{ fruit: string[]; veg: string[]; snack: string[]; jude_main: string; etta_main: string }[] | null>(null)
   const [generatingLunches, setGeneratingLunches] = useState(false)
   const [lunchInspiration, setLunchInspiration] = useState("")
   const [swappingLunchIndex, setSwappingLunchIndex] = useState<number | null>(null)
@@ -364,10 +365,10 @@ export default function PlanPage() {
   async function handleGenerateLunches() {
     setGeneratingLunches(true)
     setLunchResults(null)
+    setLunchBoxResults(null)
     setLunchesSaved(false)
     const count = packedLunchDays.length
     if (count === 0) {
-      // All days are school orders — just apply them directly
       applySchoolOrdersOnly()
       setGeneratingLunches(false)
       return
@@ -379,8 +380,11 @@ export default function PlanPage() {
     })
     if (res.ok) {
       const data = await res.json()
-      // Only take as many as we need (for non-order days)
-      setLunchResults((data.lunches || []).slice(0, count))
+      if (data.mode === "lunchbox") {
+        setLunchBoxResults((data.lunches || []).slice(0, count))
+      } else {
+        setLunchResults((data.lunches || []).slice(0, count))
+      }
     }
     setGeneratingLunches(false)
   }
@@ -445,9 +449,41 @@ export default function PlanPage() {
     setLunchesSaved(true)
   }
 
+  async function applyLunchBoxResults() {
+    if (!lunchBoxResults) return
+    const updated = meals.filter((m) => !(m.meal_type === "lunch" && WEEKDAYS.includes(m.day)))
+    for (const day of WEEKDAYS) {
+      if (schoolOrderDays[day]) {
+        updated.push({ day, meal_type: "lunch" as MealType, recipe_id: null, custom_text: "School Order" })
+      }
+    }
+    let idx = 0
+    for (const day of packedLunchDays) {
+      if (idx >= lunchBoxResults.length) break
+      const box = lunchBoxResults[idx]
+      const parts = [
+        ...box.fruit.map((f) => `🍎 ${f}`),
+        ...box.veg.map((v) => `🥕 ${v}`),
+        ...box.snack.map((s) => `🍪 ${s}`),
+        `Jude: ${box.jude_main}`,
+        `Etta: ${box.etta_main}`,
+      ]
+      updated.push({
+        day,
+        meal_type: "lunch" as MealType,
+        recipe_id: null,
+        custom_text: parts.join(" | "),
+      })
+      idx++
+    }
+    await savePlan(updated)
+    setLunchesSaved(true)
+  }
+
   function closeLunchGen() {
     setLunchGenOpen(false)
     setLunchResults(null)
+    setLunchBoxResults(null)
     setLunchesSaved(false)
     setLunchInspiration("")
     setSchoolOrderDays({ monday: false, tuesday: false, wednesday: false, thursday: false, friday: false })
@@ -849,13 +885,14 @@ export default function PlanPage() {
             {/* Mode selector */}
             <div className="flex gap-1 bg-meal-warm rounded-lg p-1 mb-4">
               {([
-                { value: "stored" as const, label: "Our Recipes" },
+                { value: "lunchbox" as const, label: "🍱 Lunch Box" },
+                { value: "stored" as const, label: "Recipes" },
                 { value: "mix" as const, label: "Mix" },
                 { value: "internet" as const, label: "Internet" },
               ]).map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={() => { setLunchMode(opt.value); setLunchResults(null); setLunchesSaved(false) }}
+                  onClick={() => { setLunchMode(opt.value); setLunchResults(null); setLunchBoxResults(null); setLunchesSaved(false) }}
                   className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
                     lunchMode === opt.value ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"
                   }`}
@@ -892,43 +929,50 @@ export default function PlanPage() {
               )}
             </div>
 
-            {/* Inspiration */}
-            <div className="mb-3">
-              <label className="block text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
-                Inspiration (optional)
-              </label>
-              <input
-                type="text"
-                value={lunchInspiration}
-                onChange={(e) => setLunchInspiration(e.target.value)}
-                placeholder="e.g. Bento, wraps, no-cook, protein-packed..."
-                className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
-              />
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {["Bento Box", "Wraps", "No Cook", "Sandwiches", "Salads", "Protein", "Snack Box", "Thermos"].map((chip) => (
-                  <button
-                    key={chip}
-                    onClick={() => setLunchInspiration(chip)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                      lunchInspiration === chip
-                        ? "bg-meal-sky text-white"
-                        : "bg-meal-warm text-meal-charcoal hover:bg-meal-sky/20"
-                    }`}
-                  >
-                    {chip}
-                  </button>
-                ))}
+            {/* Lunchbox mode description */}
+            {lunchMode === "lunchbox" && (
+              <p className="text-xs text-meal-muted mb-3">Builds lunch boxes from your saved items (fruit, veg, snacks, mains). Jude gets any main, Etta gets GF only. Manage items on the Recipes page.</p>
+            )}
+
+            {/* Inspiration — AI modes only */}
+            {lunchMode !== "lunchbox" && (
+              <div className="mb-3">
+                <label className="block text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
+                  Inspiration (optional)
+                </label>
+                <input
+                  type="text"
+                  value={lunchInspiration}
+                  onChange={(e) => setLunchInspiration(e.target.value)}
+                  placeholder="e.g. Bento, wraps, no-cook, protein-packed..."
+                  className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {["Bento Box", "Wraps", "No Cook", "Sandwiches", "Salads", "Protein", "Snack Box", "Thermos"].map((chip) => (
+                    <button
+                      key={chip}
+                      onClick={() => setLunchInspiration(chip)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        lunchInspiration === chip
+                          ? "bg-meal-sky text-white"
+                          : "bg-meal-warm text-meal-charcoal hover:bg-meal-sky/20"
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Generate button */}
-            {!lunchResults && (
+            {!lunchResults && !lunchBoxResults && (
               <button
                 onClick={handleGenerateLunches}
                 disabled={generatingLunches}
                 className="w-full py-3 rounded-lg bg-meal-sky text-white font-medium hover:bg-meal-sky/80 transition-colors disabled:opacity-50 mt-3"
               >
-                {generatingLunches ? "Generating..." : lunchInspiration.trim() ? `Generate "${lunchInspiration}" Lunches` : "Surprise Me!"}
+                {generatingLunches ? "Generating..." : lunchMode === "lunchbox" ? "Build Lunch Boxes" : lunchInspiration.trim() ? `Generate "${lunchInspiration}" Lunches` : "Surprise Me!"}
               </button>
             )}
 
@@ -940,7 +984,62 @@ export default function PlanPage() {
               </div>
             )}
 
-            {/* Results */}
+            {/* Lunch Box Results */}
+            {lunchBoxResults && !generatingLunches && (
+              <div className="mt-4">
+                <div className="space-y-3 mb-4">
+                  {lunchBoxResults.map((box, i) => (
+                    <div key={i} className="p-3 rounded-lg bg-meal-cream">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-bold text-meal-sky w-10">{DAY_LABELS[packedLunchDays[i]] || "?"}</span>
+                        <span className="text-xs text-meal-muted">Lunch Box</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-xs">
+                        <div><span className="text-meal-muted">🍎</span> {box.fruit.join(", ") || "—"}</div>
+                        <div><span className="text-meal-muted">🥕</span> {box.veg.join(", ") || "—"}</div>
+                        <div className="col-span-2"><span className="text-meal-muted">🍪</span> {box.snack.join(", ") || "—"}</div>
+                      </div>
+                      <div className="flex gap-3 mt-2 pt-2 border-t border-meal-warm">
+                        <div className="flex-1 text-xs"><span className="font-semibold text-meal-charcoal">Jude:</span> {box.jude_main}</div>
+                        <div className="flex-1 text-xs"><span className="font-semibold text-meal-sage">Etta:</span> {box.etta_main} <span className="text-[8px] text-meal-sage font-bold">GF</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {!lunchesSaved ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setLunchBoxResults(null); setLunchesSaved(false) }}
+                      className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium"
+                    >
+                      Re-roll
+                    </button>
+                    <button
+                      onClick={applyLunchBoxResults}
+                      className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
+                    >
+                      Use These Lunch Boxes
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-meal-sage/10 text-meal-sage text-sm font-medium">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Lunch boxes saved for Mon–Fri!
+                    </div>
+                    <button onClick={closeLunchGen}
+                      className="w-full py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
+                      Done
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI Results */}
             {lunchResults && !generatingLunches && (
               <div className="mt-4">
                 <div className="space-y-2 mb-4">

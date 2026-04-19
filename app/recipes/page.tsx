@@ -20,6 +20,12 @@ export default function RecipesPage() {
   const [newCheatGF, setNewCheatGF] = useState(true)
   const [newCheatCat, setNewCheatCat] = useState("protein")
 
+  // Lunch box
+  const [showLunchBox, setShowLunchBox] = useState(false)
+  const [newLunchItem, setNewLunchItem] = useState("")
+  const [newLunchCat, setNewLunchCat] = useState("lunch-main")
+  const [newLunchGF, setNewLunchGF] = useState(true)
+
   useEffect(() => {
     fetch("/api/cheat-meals").then((r) => r.ok ? r.json() : []).then(setCheatMeals)
   }, [])
@@ -167,6 +173,111 @@ export default function RecipesPage() {
               </button>
               <button onClick={addCheat} disabled={!newCheat.trim()}
                 className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50 shrink-0">
+                Add
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Lunch Box Items */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowLunchBox(!showLunchBox)}
+          className="flex items-center gap-2 text-sm font-semibold text-meal-charcoal"
+        >
+          <span>🍱</span>
+          <span>Lunch Box Items</span>
+          {cheatMeals.filter((cm) => cm.category.startsWith("lunch-")).length > 0 && (
+            <span className="bg-meal-sky text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {cheatMeals.filter((cm) => cm.category.startsWith("lunch-")).length}
+            </span>
+          )}
+          <svg className={`w-4 h-4 text-meal-muted transition-transform ${showLunchBox ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        {showLunchBox && (
+          <div className="mt-3 bg-white rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-meal-muted mb-3">Build lunch boxes from these pools. The generator picks from each category. Mains marked GF go to Etta, non-GF to Jude.</p>
+            {([
+              { key: "lunch-fruit", label: "🍎 Fruit", emoji: "" },
+              { key: "lunch-veg", label: "🥕 Veggies", emoji: "" },
+              { key: "lunch-snack", label: "🍪 Snacks", emoji: "" },
+              { key: "lunch-main", label: "🥪 Mains", emoji: "" },
+            ] as const).map(({ key, label }) => {
+              const catItems = cheatMeals.filter((cm) => cm.category === key)
+              return (
+                <div key={key} className="mb-3">
+                  <h4 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-1.5">{label}</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {catItems.map((cm) => (
+                      <span key={cm.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-meal-cream text-xs text-meal-charcoal group">
+                        {cm.name}
+                        {key === "lunch-main" && (
+                          <span className={`text-[8px] font-bold ${cm.is_gluten_free ? "text-meal-sage" : "text-meal-amber"}`}>
+                            {cm.is_gluten_free ? "GF" : "GL"}
+                          </span>
+                        )}
+                        <button onClick={() => removeCheat(cm.id)}
+                          className="text-meal-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                    {catItems.length === 0 && <span className="text-xs text-meal-muted">None yet</span>}
+                  </div>
+                </div>
+              )
+            })}
+            <div className="flex gap-1.5 mt-2">
+              <input
+                type="text"
+                value={newLunchItem}
+                onChange={(e) => setNewLunchItem(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newLunchItem.trim()) {
+                    fetch("/api/cheat-meals", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ name: newLunchItem.trim(), is_gluten_free: newLunchGF, category: newLunchCat }),
+                    }).then((r) => r.json()).then((cm) => { setCheatMeals((prev) => [...prev, cm]); setNewLunchItem("") })
+                  }
+                }}
+                placeholder="Add item..."
+                className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+              />
+              <button
+                onClick={() => {
+                  const cats = ["lunch-fruit", "lunch-veg", "lunch-snack", "lunch-main"]
+                  setNewLunchCat(cats[(cats.indexOf(newLunchCat) + 1) % cats.length])
+                }}
+                className="px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 bg-meal-warm text-meal-charcoal"
+              >
+                {newLunchCat === "lunch-fruit" ? "Fruit" : newLunchCat === "lunch-veg" ? "Veg" : newLunchCat === "lunch-snack" ? "Snack" : "Main"}
+              </button>
+              {newLunchCat === "lunch-main" && (
+                <button
+                  onClick={() => setNewLunchGF(!newLunchGF)}
+                  className={`px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 ${newLunchGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"}`}
+                >
+                  {newLunchGF ? "GF" : "Gluten"}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (!newLunchItem.trim()) return
+                  fetch("/api/cheat-meals", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: newLunchItem.trim(), is_gluten_free: newLunchGF, category: newLunchCat }),
+                  }).then((r) => r.json()).then((cm) => { setCheatMeals((prev) => [...prev, cm]); setNewLunchItem("") })
+                }}
+                disabled={!newLunchItem.trim()}
+                className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50 shrink-0"
+              >
                 Add
               </button>
             </div>
