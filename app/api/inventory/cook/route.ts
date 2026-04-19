@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getRecipe, getInventory, updateInventoryItem, deleteInventoryItem } from "@/lib/db"
-import type { InventoryItem } from "@/types"
-
 export const dynamic = "force-dynamic"
 
 const STOP_WORDS = new Set(["a", "an", "of", "the", "in", "to", "for", "and", "or", "with", "fresh", "dried", "raw", "cooked"])
@@ -47,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   for (const ing of allIngredients) {
     // Find matching inventory item (not already used in this cook)
-    const match = inventory.find((inv: InventoryItem) =>
+    const match = inventory.find((inv) =>
       !usedInventoryIds.has(inv.id) && fuzzyMatch(ing.name, inv.name)
     )
     if (!match) continue
