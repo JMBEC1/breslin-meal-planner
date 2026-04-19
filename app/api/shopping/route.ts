@@ -43,10 +43,22 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
   }
 
   // Smart subtraction — flag items already in inventory
+  // Match by: exact, substring, or shared significant words (ignores short words like "a", "of")
+  const STOP_WORDS = new Set(["a", "an", "of", "the", "in", "to", "for", "and", "or", "with", "fresh", "dried", "raw", "cooked"])
+  function sigWords(name: string): string[] {
+    return name.toLowerCase().split(/\s+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w))
+  }
+  function fuzzyMatch(a: string, b: string): boolean {
+    const la = a.toLowerCase(), lb = b.toLowerCase()
+    if (la === lb || la.includes(lb) || lb.includes(la)) return true
+    const wa = sigWords(a), wb = sigWords(b)
+    if (wa.length === 0 || wb.length === 0) return false
+    const shared = wa.filter((w) => wb.some((w2) => w2.includes(w) || w.includes(w2)))
+    return shared.length >= Math.min(wa.length, wb.length)
+  }
   const inventory = await getInventory()
   for (const item of items) {
-    const key = item.name.toLowerCase()
-    const match = inventory.find((inv) => inv.name.toLowerCase() === key || key.includes(inv.name.toLowerCase()) || inv.name.toLowerCase().includes(key))
+    const match = inventory.find((inv) => fuzzyMatch(item.name, inv.name))
     if (match) {
       item.in_inventory = true
       const loc = match.location.charAt(0).toUpperCase() + match.location.slice(1)
