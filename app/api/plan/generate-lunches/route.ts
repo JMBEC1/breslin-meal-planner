@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
-import { getRecipes, getAllRatings } from "@/lib/db"
+import { getRecipes, getAllRatings, getInventory } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
@@ -27,6 +27,15 @@ export async function POST(req: NextRequest) {
     ? `\n\nIMPORTANT THEME/INSPIRATION: The family wants lunches inspired by "${inspiration.trim()}". Focus suggestions around this theme.`
     : ""
 
+  // Build inventory context so AI can suggest lunches that use up what's in stock
+  const inventory = await getInventory()
+  const inventoryContext = inventory.length > 0
+    ? inventory.map((item) => `${item.name} (${item.quantity}${item.unit ? " " + item.unit : ""} in ${item.location})`).join(", ")
+    : ""
+  const inventoryNote = inventoryContext
+    ? `\n\nINVENTORY — the family currently has these items in stock. Where possible, suggest lunches that use these up (e.g. wraps with leftover chicken, sandwich with cheese from the fridge). Prioritise perishables:\n${inventoryContext}`
+    : ""
+
   // Stored mode — random pick from saved school-lunch recipes
   if (mode === "stored") {
     if (recipes.length === 0) {
@@ -44,6 +53,7 @@ export async function POST(req: NextRequest) {
 
 Recipes:
 ${recipeContext}
+${inventoryNote}
 
 Return ONLY valid JSON (no markdown fences):
 { "lunches": [{ "recipe_id": <id>, "title": "name", "is_gluten_free": true }] }`,
@@ -105,7 +115,7 @@ Return ONLY valid JSON (no markdown fences):
       role: "user",
       content: `You are a school lunch planner for an Australian family. One daughter is gluten-free, so prefer GF lunches. These are packed lunches for school — they need to be practical, kid-friendly, and not require reheating.
 
-${modeInstruction}${inspirationNote}
+${modeInstruction}${inspirationNote}${inventoryNote}
 
 Return ONLY valid JSON (no markdown fences):
 {

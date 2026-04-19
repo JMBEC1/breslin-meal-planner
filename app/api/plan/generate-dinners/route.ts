@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
-import { getRecipes, getAllRatings } from "@/lib/db"
+import { getRecipes, getAllRatings, getInventory } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
@@ -32,6 +32,15 @@ export async function POST(req: NextRequest) {
     ? `\n\nIMPORTANT THEME/INSPIRATION: The family wants meals inspired by "${inspiration.trim()}". Focus suggestions around this theme where possible.`
     : ""
 
+  // Build inventory context so AI can suggest meals that use up what's in stock
+  const inventory = await getInventory()
+  const inventoryContext = inventory.length > 0
+    ? inventory.map((item) => `${item.name} (${item.quantity}${item.unit ? " " + item.unit : ""} in ${item.location})`).join(", ")
+    : ""
+  const inventoryNote = inventoryContext
+    ? `\n\nINVENTORY — the family currently has these items in stock. PRIORITISE meals that use these up. Meals don't have to be fancy recipes — simple combos like "Chicken Schnitzel, chips and broccoli" are great. Try to use up proteins and perishables first:\n${inventoryContext}`
+    : ""
+
   // Mode: stored only — pick randomly from existing recipes, weighted by ratings
   if (mode === "stored") {
     if (recipes.length === 0) {
@@ -49,6 +58,7 @@ export async function POST(req: NextRequest) {
 
 Recipes:
 ${recipeContext}
+${inventoryNote}
 
 Big meals (6+ servings) can cover 2 nights with leftovers.
 
@@ -128,7 +138,7 @@ Return ONLY valid JSON (no markdown fences):
       role: "user",
       content: `You are a family meal planner for an Australian family. One daughter is gluten-free, so prefer GF recipes. When suggesting non-GF meals, note the GF swap.
 
-${modeInstruction}${inspirationNote}
+${modeInstruction}${inspirationNote}${inventoryNote}
 
 Consider that big meals (6+ servings) can cover 2 nights with leftovers, so you may suggest fewer than 7 recipes if some are large.
 
