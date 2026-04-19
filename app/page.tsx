@@ -63,7 +63,7 @@ export default function PlanPage() {
   const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType; addSide?: boolean } | null>(null)
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
-  const [freezerItems, setFreezerItems] = useState<{ id: number; name: string; servings: number | null; item_type: string }[]>([])
+  const [freezerItems, setFreezerItems] = useState<{ id: number; name: string; servings: number | null; item_type: string; location: string }[]>([])
   const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; category: string; is_gluten_free: boolean }[]>([])
   const [newCheat, setNewCheat] = useState("")
   const [newCheatGF, setNewCheatGF] = useState(true)
@@ -503,11 +503,12 @@ export default function PlanPage() {
       if (res.ok) setAllRecipes(await res.json())
     }
     if (!addSide) {
-      const res = await fetch("/api/inventory?location=freezer")
+      const res = await fetch("/api/inventory")
       if (res.ok) {
         const items = await res.json()
-        setFreezerItems(items.filter((i: { item_type: string }) =>
-          ["batch_cook", "frozen_meal", "ready_meal"].includes(i.item_type)))
+        setFreezerItems(items.filter((i: { item_type: string; location: string }) =>
+          ["batch_cook", "frozen_meal", "ready_meal"].includes(i.item_type) &&
+          ["freezer", "fridge"].includes(i.location)))
       }
     }
     {
@@ -1371,17 +1372,17 @@ export default function PlanPage() {
               </button>
             </div>
 
-            {/* From Freezer */}
+            {/* Leftovers — from fridge & freezer */}
             {!pickerOpen.addSide && freezerItems.length > 0 && (
               <div className="border-t border-meal-warm pt-3 mb-3">
-                <h4 className="text-xs font-semibold text-meal-muted uppercase mb-2">From Freezer</h4>
+                <h4 className="text-xs font-semibold text-meal-muted uppercase mb-2">Leftovers & Frozen</h4>
                 <div className="space-y-1">
                   {freezerItems.map((item) => (
                     <button
                       key={item.id}
                       onClick={async () => {
-                        assignRecipe(pickerOpen.day, pickerOpen.meal_type, null, `Freezer: ${item.name}`)
-                        // Decrement servings
+                        const label = item.location === "fridge" ? "Fridge" : "Freezer"
+                        assignRecipe(pickerOpen.day, pickerOpen.meal_type, null, `${label}: ${item.name}`)
                         if (item.servings && item.servings > 1) {
                           await fetch(`/api/inventory/${item.id}`, {
                             method: "PATCH",
@@ -1394,7 +1395,7 @@ export default function PlanPage() {
                       }}
                       className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
                     >
-                      <span className="text-sm">❄️</span>
+                      <span className="text-sm">{item.location === "fridge" ? "🥬" : "❄️"}</span>
                       <span className="flex-1 text-sm text-meal-charcoal">{item.name}</span>
                       {item.servings && (
                         <span className="text-[10px] font-medium text-meal-plum">{item.servings} left</span>
