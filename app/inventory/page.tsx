@@ -20,6 +20,8 @@ export default function InventoryPage() {
   const [newUnit, setNewUnit] = useState("")
   const [newType, setNewType] = useState("ingredient")
   const [toast, setToast] = useState<{ item: InventoryItem; visible: boolean } | null>(null)
+  const [bulkText, setBulkText] = useState("")
+  const [showBulk, setShowBulk] = useState(false)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -220,6 +222,23 @@ export default function InventoryPage() {
     setEditingId(null)
   }
 
+  function parseBulkLine(line: string): { name: string; quantity: string; unit: string } {
+    // Try: "2x Chicken breast", "2 x Chicken breast"
+    let m = line.match(/^(\d+(?:\.\d+)?)\s*x\s+(.+)/i)
+    if (m) return { name: m[2].trim(), quantity: m[1], unit: "" }
+    // Try: "Chicken breast x2"
+    m = line.match(/^(.+?)\s*x\s*(\d+(?:\.\d+)?)\s*$/i)
+    if (m) return { name: m[1].trim(), quantity: m[2], unit: "" }
+    // Try: "500g mince", "2L milk", "1.5kg chicken"
+    m = line.match(/^(\d+(?:\.\d+)?)\s*(g|kg|ml|l|L)\s+(.+)/i)
+    if (m) return { name: m[3].trim(), quantity: m[1], unit: m[2] }
+    // Try: "2 Yoghurt tubs" (number + name)
+    m = line.match(/^(\d+(?:\.\d+)?)\s+(.+)/)
+    if (m) return { name: m[2].trim(), quantity: m[1], unit: "" }
+    // Plain name
+    return { name: line.trim(), quantity: "1", unit: "" }
+  }
+
   const [assignOpen, setAssignOpen] = useState<InventoryItem | null>(null)
   const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
   const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" }
@@ -416,7 +435,48 @@ export default function InventoryPage() {
         )}
       </div>
 
-      {/* Scanned results */}
+      {/* Paste list */}
+      <div className="mt-4 bg-white rounded-xl p-4 shadow-sm">
+        <button
+          onClick={() => setShowBulk(!showBulk)}
+          className="flex items-center justify-between w-full"
+        >
+          <div>
+            <h3 className="text-sm font-semibold text-meal-charcoal">Paste a List</h3>
+            <p className="text-xs text-meal-muted">Type or paste multiple items, one per line</p>
+          </div>
+          <svg className={`w-5 h-5 text-meal-muted transition-transform ${showBulk ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        {showBulk && (
+          <div className="mt-3">
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={"Chicken breast\n2x Mince 500g\nMilk\nBroccoli\n3 Yoghurt tubs"}
+              rows={6}
+              className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm resize-none"
+            />
+            <button
+              onClick={() => {
+                const lines = bulkText.split("\n").map((l) => l.trim()).filter(Boolean)
+                if (lines.length === 0) return
+                const parsed = lines.map(parseBulkLine)
+                setScannedItems(parsed.map((p) => ({ name: p.name, quantity: p.quantity, unit: p.unit, aisle: "other", is_gluten_free: true, selected: true })))
+                setBulkText("")
+                setShowBulk(false)
+              }}
+              disabled={!bulkText.trim()}
+              className="w-full mt-2 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+            >
+              Review {bulkText.trim() ? bulkText.split("\n").filter((l) => l.trim()).length : 0} Items
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Scanned / parsed results */}
       {scannedItems && (
         <div className="mt-4 bg-white rounded-xl p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-meal-charcoal mb-1">Found {scannedItems.length} items</h3>
