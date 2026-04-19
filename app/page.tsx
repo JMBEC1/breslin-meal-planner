@@ -72,8 +72,9 @@ export default function PlanPage() {
   const [cookToast, setCookToast] = useState<{ message: string; visible: boolean } | null>(null)
   const [cookingSlot, setCookingSlot] = useState<string | null>(null)
   const [cookModal, setCookModal] = useState<{ day: DayOfWeek; mealType: MealType; recipeIds: number[]; title: string; isGF: boolean } | null>(null)
-  const [cookPortions, setCookPortions] = useState("4")
-  const [cookEating, setCookEating] = useState("4")
+  const [cookEating, setCookEating] = useState("1")
+  const [cookFridge, setCookFridge] = useState("0")
+  const [cookFreezer, setCookFreezer] = useState("0")
   const [cookSaving, setCookSaving] = useState(false)
 
   function markCooked(day: DayOfWeek, mealType: MealType) {
@@ -86,9 +87,9 @@ export default function PlanPage() {
 
     const recipe = slot.recipe_id ? recipes[slot.recipe_id] : null
     const title = recipe?.title || slot.custom_text || "Meal"
-    const servings = recipe?.servings || 4
-    setCookPortions(String(servings))
-    setCookEating(String(servings))
+    setCookEating("1")
+    setCookFridge("0")
+    setCookFreezer("0")
     setCookModal({ day, mealType, recipeIds: ids, title, isGF: recipe?.is_gluten_free ?? true })
   }
 
@@ -105,36 +106,36 @@ export default function PlanPage() {
     const data = res.ok ? await res.json() : { deducted: [] }
     const count = data.deducted?.length || 0
 
-    // 2. Freeze leftover portions
-    const total = parseInt(cookPortions) || 0
-    const eating = parseInt(cookEating) || 0
-    const freezing = Math.max(0, total - eating)
+    // 2. Save portions to fridge and/or freezer
+    const fridgeCount = parseInt(cookFridge) || 0
+    const freezerCount = parseInt(cookFreezer) || 0
 
-    if (freezing > 0) {
-      await fetch("/api/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: cookModal.title,
-          location: "freezer",
-          item_type: "batch_cook",
-          quantity: String(freezing),
-          unit: "portions",
-          servings: freezing,
-          is_gluten_free: cookModal.isGF,
-          notes: `Batch cooked from ${cookModal.title}`,
-        }),
-      })
+    for (const [loc, qty] of [["fridge", fridgeCount], ["freezer", freezerCount]] as const) {
+      if (qty > 0) {
+        await fetch("/api/inventory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: cookModal.title,
+            location: loc,
+            item_type: "batch_cook",
+            quantity: String(qty),
+            unit: "portions",
+            servings: qty,
+            is_gluten_free: cookModal.isGF,
+            notes: `Batch cooked from ${cookModal.title}`,
+          }),
+        })
+      }
     }
 
     setCookSaving(false)
     setCookModal(null)
-    setCookToast({
-      message: freezing > 0
-        ? `Deducted ${count} items, froze ${freezing} portion${freezing !== 1 ? "s" : ""}`
-        : `Deducted ${count} item${count !== 1 ? "s" : ""} from inventory`,
-      visible: true,
-    })
+    const parts: string[] = []
+    if (count > 0) parts.push(`Deducted ${count} item${count !== 1 ? "s" : ""}`)
+    if (fridgeCount > 0) parts.push(`${fridgeCount} to fridge`)
+    if (freezerCount > 0) parts.push(`${freezerCount} to freezer`)
+    setCookToast({ message: parts.join(", ") || "Done!", visible: true })
     setTimeout(() => setCookToast(null), 4000)
   }
 
@@ -1193,25 +1194,28 @@ export default function PlanPage() {
           <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-sm p-5"
             onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-meal-charcoal mb-1">Cooked: {cookModal.title}</h3>
-            <p className="text-sm text-meal-muted mb-4">Ingredients will be deducted from inventory. Made extra? Freeze the rest.</p>
+            <p className="text-sm text-meal-muted mb-4">Ingredients will be deducted from inventory. Split leftovers between fridge and freezer.</p>
             <div className="space-y-3 mb-4">
-              <div>
-                <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Total portions made</label>
-                <input type="number" value={cookPortions} onChange={(e) => setCookPortions(e.target.value)}
-                  min="1" className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Eating now</label>
-                <input type="number" value={cookEating} onChange={(e) => setCookEating(e.target.value)}
-                  min="0" className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30" />
-              </div>
-              {(parseInt(cookPortions) || 0) - (parseInt(cookEating) || 0) > 0 && (
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700 font-medium">
-                    ❄️ {(parseInt(cookPortions) || 0) - (parseInt(cookEating) || 0)} portion{(parseInt(cookPortions) || 0) - (parseInt(cookEating) || 0) !== 1 ? "s" : ""} will be saved to freezer
-                  </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">🍽️ Eating</label>
+                  <input type="number" value={cookEating} onChange={(e) => setCookEating(e.target.value)}
+                    min="0" className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm text-center focus:outline-none focus:ring-2 focus:ring-meal-sage/30" />
                 </div>
-              )}
+                <div>
+                  <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">🥬 Fridge</label>
+                  <input type="number" value={cookFridge} onChange={(e) => setCookFridge(e.target.value)}
+                    min="0" className="w-full px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-300" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">❄️ Freezer</label>
+                  <input type="number" value={cookFreezer} onChange={(e) => setCookFreezer(e.target.value)}
+                    min="0" className="w-full px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                </div>
+              </div>
+              <p className="text-xs text-meal-muted text-center">
+                Total: {(parseInt(cookEating) || 0) + (parseInt(cookFridge) || 0) + (parseInt(cookFreezer) || 0)} portions
+              </p>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setCookModal(null)}
