@@ -730,26 +730,22 @@ export async function clearNeeds(): Promise<void> {
   }
 }
 
-// ── Cheat Meals ──────────────────────────────────────────────────────────
+// ── Quick Meal Ingredients ────────────────────────────────────────────────
 
 interface CheatMealRow { id: number; name: string; category: string; is_gluten_free: number; created_at: string }
 
-export async function getCheatMeals(category?: string) {
+export async function getCheatMeals() {
   if (USE_NEON) {
     const sql = await getNeon()
-    const rows = category
-      ? await sql`SELECT * FROM cheat_meals WHERE category = ${category} ORDER BY name ASC`
-      : await sql`SELECT * FROM cheat_meals ORDER BY category ASC, name ASC`
+    const rows = await sql`SELECT * FROM cheat_meals ORDER BY category ASC, name ASC`
     return (rows as CheatMealRow[]).map((r) => ({ ...r, is_gluten_free: !!r.is_gluten_free }))
   }
   const db = getSqlite()
-  const rows = category
-    ? db.prepare("SELECT * FROM cheat_meals WHERE category = ? ORDER BY name ASC").all(category) as CheatMealRow[]
-    : db.prepare("SELECT * FROM cheat_meals ORDER BY category ASC, name ASC").all() as CheatMealRow[]
+  const rows = db.prepare("SELECT * FROM cheat_meals ORDER BY category ASC, name ASC").all() as CheatMealRow[]
   return rows.map((r) => ({ ...r, is_gluten_free: !!r.is_gluten_free }))
 }
 
-export async function insertCheatMeal(name: string, isGlutenFree: boolean, category: string = "dinner") {
+export async function insertCheatMeal(name: string, isGlutenFree: boolean, category: string = "protein") {
   const gf = isGlutenFree ? 1 : 0
   if (USE_NEON) {
     const sql = await getNeon()

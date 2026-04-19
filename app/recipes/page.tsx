@@ -18,7 +18,7 @@ export default function RecipesPage() {
   const [showCheats, setShowCheats] = useState(false)
   const [newCheat, setNewCheat] = useState("")
   const [newCheatGF, setNewCheatGF] = useState(true)
-  const [newCheatCat, setNewCheatCat] = useState<"dinner" | "lunch">("dinner")
+  const [newCheatCat, setNewCheatCat] = useState("protein")
 
   useEffect(() => {
     fetch("/api/cheat-meals").then((r) => r.ok ? r.json() : []).then(setCheatMeals)
@@ -106,14 +106,14 @@ export default function RecipesPage() {
         />
       </div>
 
-      {/* Cheat Meals */}
+      {/* Quick Meal Ingredients */}
       <div className="mb-6">
         <button
           onClick={() => setShowCheats(!showCheats)}
           className="flex items-center gap-2 text-sm font-semibold text-meal-charcoal"
         >
-          <span>🍕</span>
-          <span>Cheat Meals</span>
+          <span>🍳</span>
+          <span>Quick Meal Ingredients</span>
           {cheatMeals.length > 0 && (
             <span className="bg-meal-coral text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {cheatMeals.length}
@@ -125,57 +125,45 @@ export default function RecipesPage() {
         </button>
         {showCheats && (
           <div className="mt-3 bg-white rounded-xl p-4 shadow-sm">
-            <p className="text-xs text-meal-muted mb-3">Quick easy meals — no recipe needed. These show up in the meal picker too.</p>
-            {(["dinner", "lunch"] as const).map((cat) => {
-              const catItems = cheatMeals.filter((cm) => cm.category === cat)
-              if (catItems.length === 0) return null
+            <p className="text-xs text-meal-muted mb-3">Ingredients for quick meals — tap to combine in the meal picker. Long-press to delete.</p>
+            {(["protein", "carb", "veg"] as const).map((type) => {
+              const typeItems = cheatMeals.filter((cm) => cm.category === type)
               return (
-                <div key={cat} className="mb-3">
+                <div key={type} className="mb-3">
                   <h4 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-1.5">
-                    {cat === "dinner" ? "Dinners" : "Lunches"}
+                    {type === "veg" ? "Veg / Sides" : type === "protein" ? "Proteins" : "Carbs"}
                   </h4>
-                  <div className="space-y-1">
-                    {catItems.map((cm) => (
-                      <div key={cm.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
-                        <span className="text-sm">🍕</span>
-                        <span className="flex-1 text-sm text-meal-charcoal">{cm.name}</span>
-                        {cm.is_gluten_free ? (
-                          <span className="text-[10px] font-semibold text-meal-sage">GF</span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
-                        )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {typeItems.map((cm) => (
+                      <span key={cm.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-meal-cream text-xs text-meal-charcoal group">
+                        {cm.name}
                         <button onClick={() => removeCheat(cm.id)}
                           className="text-meal-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
-                      </div>
+                      </span>
                     ))}
+                    {typeItems.length === 0 && <span className="text-xs text-meal-muted">None yet</span>}
                   </div>
                 </div>
               )
             })}
-            <div className="flex gap-2">
+            <div className="flex gap-2 mt-2">
               <input
                 type="text"
                 value={newCheat}
                 onChange={(e) => setNewCheat(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addCheat()}
-                placeholder="e.g. Pasta & sauce, Fish fingers & chips..."
+                placeholder="e.g. Sausages, Rice, Broccoli..."
                 className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
               />
               <button
-                onClick={() => setNewCheatCat(newCheatCat === "dinner" ? "lunch" : "dinner")}
-                className={`px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 ${newCheatCat === "dinner" ? "bg-meal-coral/10 text-meal-coral" : "bg-meal-sky/10 text-meal-sky"}`}
+                onClick={() => setNewCheatCat(newCheatCat === "protein" ? "carb" : newCheatCat === "carb" ? "veg" : "protein")}
+                className="px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 bg-meal-warm text-meal-charcoal"
               >
-                {newCheatCat === "dinner" ? "Dinner" : "Lunch"}
-              </button>
-              <button
-                onClick={() => setNewCheatGF(!newCheatGF)}
-                className={`px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 ${newCheatGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"}`}
-              >
-                {newCheatGF ? "GF" : "Gluten"}
+                {newCheatCat === "protein" ? "Protein" : newCheatCat === "carb" ? "Carb" : "Veg"}
               </button>
               <button onClick={addCheat} disabled={!newCheat.trim()}
                 className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50 shrink-0">
