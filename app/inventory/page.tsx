@@ -171,17 +171,28 @@ export default function InventoryPage() {
     fetchItems()
   }
 
-  // Group items by type
-  const grouped: Record<string, InventoryItem[]> = {}
-  for (const item of items) {
-    const key = item.item_type
-    if (!grouped[key]) grouped[key] = []
-    grouped[key].push(item)
-  }
+  // Group items: batch_cook/frozen_meal/ready_meal first, then ingredients by aisle
+  const mealItems = items.filter((i) => ["batch_cook", "frozen_meal", "ready_meal"].includes(i.item_type))
+  const ingredientItems = items.filter((i) => i.item_type === "ingredient")
 
-  // Order: batch_cook, frozen_meal, ready_meal, ingredient
-  const typeOrder = ["batch_cook", "frozen_meal", "ready_meal", "ingredient"]
-  const sortedGroups = typeOrder.filter((t) => grouped[t]?.length).map((t) => ({ type: t, items: grouped[t] }))
+  const aisleGrouped: Record<string, InventoryItem[]> = {}
+  for (const item of ingredientItems) {
+    const key = item.aisle || "other"
+    if (!aisleGrouped[key]) aisleGrouped[key] = []
+    aisleGrouped[key].push(item)
+  }
+  const AISLE_ORDER = ["fruit-veg", "meat-seafood", "dairy-eggs", "bakery", "pantry", "frozen", "condiments-sauces", "drinks", "snacks", "international", "health-foods", "household", "other"]
+  const sortedAisleGroups = AISLE_ORDER.filter((a) => aisleGrouped[a]?.length).map((a) => ({ aisle: a, items: aisleGrouped[a] }))
+
+  // Meal type groups (batch cook, frozen meals etc.)
+  const mealGrouped: Record<string, InventoryItem[]> = {}
+  for (const item of mealItems) {
+    const key = item.item_type
+    if (!mealGrouped[key]) mealGrouped[key] = []
+    mealGrouped[key].push(item)
+  }
+  const mealTypeOrder = ["batch_cook", "frozen_meal", "ready_meal"]
+  const sortedMealGroups = mealTypeOrder.filter((t) => mealGrouped[t]?.length).map((t) => ({ type: t, items: mealGrouped[t] }))
 
   function compressImage(file: File, maxWidth = 1600, quality = 0.7): Promise<Blob> {
     return new Promise((resolve) => {
@@ -365,9 +376,10 @@ export default function InventoryPage() {
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                     item.location === "freezer" ? "bg-blue-50 text-blue-600" :
                     item.location === "fridge" ? "bg-green-50 text-green-600" :
+                    item.location === "household" ? "bg-purple-50 text-purple-600" :
                     "bg-amber-50 text-amber-600"
                   }`}>
-                    {item.location === "freezer" ? "❄️ Freezer" : item.location === "fridge" ? "🥬 Fridge" : "🏠 Pantry"}
+                    {item.location === "freezer" ? "❄️ Freezer" : item.location === "fridge" ? "🥬 Fridge" : item.location === "household" ? "🧹 Household" : "🏠 Pantry"}
                   </span>
                 </div>
               ))}
@@ -378,7 +390,7 @@ export default function InventoryPage() {
       <>
       {/* Location tabs */}
       <div className="flex gap-1 bg-meal-warm rounded-lg p-1 mb-6">
-        {(["freezer", "fridge", "pantry"] as InventoryLocation[]).map((loc) => (
+        {(["freezer", "fridge", "pantry", "household"] as InventoryLocation[]).map((loc) => (
           <button
             key={loc}
             onClick={() => setLocation(loc)}
@@ -389,6 +401,7 @@ export default function InventoryPage() {
             {loc === "freezer" && <span>❄️</span>}
             {loc === "fridge" && <span>🥬</span>}
             {loc === "pantry" && <span>🏠</span>}
+            {loc === "household" && <span>🧹</span>}
             {LOCATION_LABELS[loc]}
           </button>
         ))}
@@ -419,7 +432,8 @@ export default function InventoryPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {sortedGroups.map(({ type, items: groupItems }) => (
+          {/* Meal items (batch cook, frozen meals etc.) */}
+          {sortedMealGroups.map(({ type, items: groupItems }) => (
             <div key={type}>
               <h2 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
                 {ITEM_TYPE_LABELS[type] || type}
@@ -427,18 +441,41 @@ export default function InventoryPage() {
               <div className="bg-white rounded-xl overflow-hidden shadow-sm">
                 {groupItems.map((item) => (
                   <div key={item.id} className={`flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0 ${selectedIds.has(item.id) ? "bg-meal-sage/5" : ""}`}>
-                    {/* Select checkbox for merging */}
-                    <button
-                      onClick={() => toggleSelect(item.id)}
-                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                        selectedIds.has(item.id) ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
-                      }`}
-                    >
-                      {selectedIds.has(item.id) && (
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      )}
+                    <button onClick={() => toggleSelect(item.id)}
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selectedIds.has(item.id) ? "bg-meal-sage border-meal-sage" : "border-meal-warm"}`}>
+                      {selectedIds.has(item.id) && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {item.servings && <span className="text-xs text-meal-plum font-medium">{item.servings} portion{item.servings > 1 ? "s" : ""}</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => setAssignOpen(item)} className="text-[10px] font-medium text-meal-sage hover:text-meal-sageHover px-2 py-1 rounded bg-meal-sage/10">Plan</button>
+                    <select value={item.location} onChange={(e) => moveItem(item, e.target.value as InventoryLocation)}
+                      className="text-[10px] px-1.5 py-1 rounded bg-meal-cream border border-meal-warm text-meal-charcoal focus:outline-none">
+                      <option value="fridge">🥬 Fridge</option><option value="freezer">❄️ Freezer</option><option value="pantry">🏠 Pantry</option><option value="household">🧹 Household</option>
+                    </select>
+                    <button onClick={() => removeItem(item)} className="text-meal-muted hover:text-red-500 transition-colors p-1">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" /></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {/* Ingredients grouped by aisle */}
+          {sortedAisleGroups.map(({ aisle, items: aisleItems }) => (
+            <div key={aisle}>
+              <h2 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
+                {AISLE_LABELS[aisle as AisleCategory] || aisle}
+              </h2>
+              <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+                {aisleItems.map((item) => (
+                  <div key={item.id} className={`flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0 ${selectedIds.has(item.id) ? "bg-meal-sage/5" : ""}`}>
+                    <button onClick={() => toggleSelect(item.id)}
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selectedIds.has(item.id) ? "bg-meal-sage border-meal-sage" : "border-meal-warm"}`}>
+                      {selectedIds.has(item.id) && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
                     </button>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
@@ -450,10 +487,8 @@ export default function InventoryPage() {
                           <input type="text" value={editUnit} onChange={(e) => setEditUnit(e.target.value)}
                             className="w-16 px-2 py-1 rounded bg-meal-cream border border-meal-warm text-xs focus:outline-none focus:ring-1 focus:ring-meal-sage"
                             placeholder="Unit" />
-                          <button onClick={() => saveEdit(item.id)}
-                            className="text-[10px] font-medium text-meal-sage">Save</button>
-                          <button onClick={() => setEditingId(null)}
-                            className="text-[10px] text-meal-muted">Cancel</button>
+                          <button onClick={() => saveEdit(item.id)} className="text-[10px] font-medium text-meal-sage">Save</button>
+                          <button onClick={() => setEditingId(null)} className="text-[10px] text-meal-muted">Cancel</button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 mt-0.5 cursor-pointer" onClick={() => { setEditingId(item.id); setEditQty(item.quantity); setEditUnit(item.unit) }}>
@@ -462,40 +497,15 @@ export default function InventoryPage() {
                           ) : (
                             <span className="text-xs text-meal-muted hover:text-meal-sage">Tap to set qty</span>
                           )}
-                          {item.servings && (
-                            <span className="text-xs text-meal-plum font-medium">{item.servings} portion{item.servings > 1 ? "s" : ""}</span>
-                          )}
-                          <span className="text-xs text-meal-muted">{AISLE_LABELS[item.aisle as AisleCategory] || ""}</span>
                         </div>
                       )}
                     </div>
-                    {/* Assign to plan (for meals) */}
-                    {(item.item_type === "batch_cook" || item.item_type === "frozen_meal" || item.item_type === "ready_meal") && (
-                      <button
-                        onClick={() => setAssignOpen(item)}
-                        className="text-[10px] font-medium text-meal-sage hover:text-meal-sageHover px-2 py-1 rounded bg-meal-sage/10"
-                      >
-                        Plan
-                      </button>
-                    )}
-                    {/* Move */}
-                    <select
-                      value={item.location}
-                      onChange={(e) => moveItem(item, e.target.value as InventoryLocation)}
-                      className="text-[10px] px-1.5 py-1 rounded bg-meal-cream border border-meal-warm text-meal-charcoal focus:outline-none"
-                    >
-                      <option value="fridge">🥬 Fridge</option>
-                      <option value="freezer">❄️ Freezer</option>
-                      <option value="pantry">🏠 Pantry</option>
+                    <select value={item.location} onChange={(e) => moveItem(item, e.target.value as InventoryLocation)}
+                      className="text-[10px] px-1.5 py-1 rounded bg-meal-cream border border-meal-warm text-meal-charcoal focus:outline-none">
+                      <option value="fridge">🥬 Fridge</option><option value="freezer">❄️ Freezer</option><option value="pantry">🏠 Pantry</option><option value="household">🧹 Household</option>
                     </select>
-                    {/* Remove */}
-                    <button
-                      onClick={() => removeItem(item)}
-                      className="text-meal-muted hover:text-red-500 transition-colors p-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
-                      </svg>
+                    <button onClick={() => removeItem(item)} className="text-meal-muted hover:text-red-500 transition-colors p-1">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" /></svg>
                     </button>
                   </div>
                 ))}

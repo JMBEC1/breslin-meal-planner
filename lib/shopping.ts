@@ -37,6 +37,13 @@ const AISLE_MAP: Record<string, AisleCategory> = {
   // Health Foods
   almond_milk: "health-foods", gluten_free_flour: "health-foods",
   gluten_free_pasta: "health-foods", tamari: "health-foods",
+  // Household
+  toilet_paper: "household", toilet_roll: "household", paper_towel: "household",
+  shampoo: "household", conditioner: "household", soap: "household", hand_wash: "household",
+  dishwashing: "household", dish_soap: "household", laundry: "household", detergent: "household",
+  bin_bags: "household", garbage_bags: "household", cling_wrap: "household", foil: "household",
+  sponge: "household", bleach: "household", wipes: "household", tissues: "household",
+  toothpaste: "household", deodorant: "household", sunscreen: "household",
 }
 
 function normaliseKey(name: string): string {

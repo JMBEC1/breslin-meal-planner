@@ -12,6 +12,7 @@ export type AisleCategory =
   | "snacks"
   | "international"
   | "health-foods"
+  | "household"
   | "other"
 
 export const AISLE_LABELS: Record<AisleCategory, string> = {
@@ -26,6 +27,7 @@ export const AISLE_LABELS: Record<AisleCategory, string> = {
   "snacks": "Snacks",
   "international": "International",
   "health-foods": "Health Foods",
+  "household": "Household",
   "other": "Other",
 }
 
@@ -153,13 +155,14 @@ export interface RecipeRatingSummary {
 
 // ── Inventory ───────────────────────────────────────────────────────────────
 
-export type InventoryLocation = "freezer" | "fridge" | "pantry"
+export type InventoryLocation = "freezer" | "fridge" | "pantry" | "household"
 export type InventoryItemType = "ingredient" | "frozen_meal" | "ready_meal" | "batch_cook"
 
 export const LOCATION_LABELS: Record<InventoryLocation, string> = {
   freezer: "Freezer",
   fridge: "Fridge",
   pantry: "Pantry",
+  household: "Household",
 }
 
 export interface InventoryItem {

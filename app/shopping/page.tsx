@@ -459,7 +459,7 @@ export default function ShoppingPage() {
                     >
                       <option value="fridge">🥬 Fridge</option>
                       <option value="freezer">❄️ Freezer</option>
-                      <option value="pantry">🏠 Pantry</option>
+                      <option value="pantry">🏠 Pantry</option><option value="household">🧹 Household</option>
                     </select>
                   </div>
                 ))}
