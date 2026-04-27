@@ -20,6 +20,40 @@ export default function RecipesPage() {
   const [newCheatGF, setNewCheatGF] = useState(true)
   const [newCheatCat, setNewCheatCat] = useState("protein")
 
+  // Cheat meal modal
+  const [cheatModalOpen, setCheatModalOpen] = useState(false)
+  const [cheatName, setCheatName] = useState("")
+  const [cheatServings, setCheatServings] = useState("4")
+  const [cheatGF, setCheatGF] = useState(true)
+  const [cheatCategory, setCheatCategory] = useState<"dinner" | "school-lunch">("dinner")
+  const [savingCheat, setSavingCheat] = useState(false)
+
+  async function saveCheatMeal() {
+    if (!cheatName.trim()) return
+    setSavingCheat(true)
+    const res = await fetch("/api/recipes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: cheatName.trim(),
+        category: cheatCategory,
+        is_gluten_free: cheatGF,
+        servings: parseInt(cheatServings) || 4,
+        description: "Quick meal — no recipe needed",
+        ingredients: [],
+        instructions: "",
+        tags: ["cheat-meal"],
+      }),
+    })
+    if (res.ok) {
+      setCheatModalOpen(false)
+      setCheatName("")
+      setCheatServings("4")
+      fetchRecipes()
+    }
+    setSavingCheat(false)
+  }
+
   // Lunch box
   const [showLunchBox, setShowLunchBox] = useState(false)
   const [newLunchItem, setNewLunchItem] = useState("")
@@ -75,6 +109,12 @@ export default function RecipesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-meal-charcoal">Recipes</h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => setCheatModalOpen(true)}
+            className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/80 transition-colors"
+          >
+            + Cheat Meal
+          </button>
           <Link
             href="/recipes/import"
             className="px-4 py-2 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium hover:bg-meal-warm/80 transition-colors"
@@ -109,74 +149,6 @@ export default function RecipesPage() {
           onCategoryChange={setCategory}
           onGfChange={setGfOnly}
         />
-      </div>
-
-      {/* Quick Meal Ingredients */}
-      <div className="mb-6">
-        <button
-          onClick={() => setShowCheats(!showCheats)}
-          className="flex items-center gap-2 text-sm font-semibold text-meal-charcoal"
-        >
-          <span>🍳</span>
-          <span>Quick Meal Ingredients</span>
-          {cheatMeals.length > 0 && (
-            <span className="bg-meal-coral text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-              {cheatMeals.length}
-            </span>
-          )}
-          <svg className={`w-4 h-4 text-meal-muted transition-transform ${showCheats ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-          </svg>
-        </button>
-        {showCheats && (
-          <div className="mt-3 bg-white rounded-xl p-4 shadow-sm">
-            <p className="text-xs text-meal-muted mb-3">Ingredients for quick meals — tap to combine in the meal picker. Long-press to delete.</p>
-            {(["protein", "carb", "veg"] as const).map((type) => {
-              const typeItems = cheatMeals.filter((cm) => cm.category === type)
-              return (
-                <div key={type} className="mb-3">
-                  <h4 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-1.5">
-                    {type === "veg" ? "Veg / Sides" : type === "protein" ? "Proteins" : "Carbs"}
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {typeItems.map((cm) => (
-                      <span key={cm.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-meal-cream text-xs text-meal-charcoal group">
-                        {cm.name}
-                        <button onClick={() => removeCheat(cm.id)}
-                          className="text-meal-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </span>
-                    ))}
-                    {typeItems.length === 0 && <span className="text-xs text-meal-muted">None yet</span>}
-                  </div>
-                </div>
-              )
-            })}
-            <div className="flex gap-2 mt-2">
-              <input
-                type="text"
-                value={newCheat}
-                onChange={(e) => setNewCheat(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addCheat()}
-                placeholder="e.g. Sausages, Rice, Broccoli..."
-                className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
-              />
-              <button
-                onClick={() => setNewCheatCat(newCheatCat === "protein" ? "carb" : newCheatCat === "carb" ? "veg" : "protein")}
-                className="px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 bg-meal-warm text-meal-charcoal"
-              >
-                {newCheatCat === "protein" ? "Protein" : newCheatCat === "carb" ? "Carb" : "Veg"}
-              </button>
-              <button onClick={addCheat} disabled={!newCheat.trim()}
-                className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50 shrink-0">
-                Add
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Lunch Box Items */}
@@ -290,6 +262,76 @@ export default function RecipesPage() {
           {filtered.map((recipe) => (
             <RecipeCard key={recipe.id} recipe={recipe} />
           ))}
+        </div>
+      )}
+
+      {/* Cheat Meal Modal */}
+      {cheatModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
+          onClick={() => setCheatModalOpen(false)}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-meal-charcoal mb-1">Add Cheat Meal</h3>
+            <p className="text-sm text-meal-muted mb-4">Quick meals with no recipe — just a name and servings.</p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Meal name</label>
+                <input
+                  type="text"
+                  value={cheatName}
+                  onChange={(e) => setCheatName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveCheatMeal()}
+                  placeholder="e.g. Sausages, chips & beans"
+                  className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
+                  autoFocus
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Servings</label>
+                  <input
+                    type="number"
+                    value={cheatServings}
+                    onChange={(e) => setCheatServings(e.target.value)}
+                    min="1"
+                    className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm text-center focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Type</label>
+                  <button
+                    onClick={() => setCheatCategory(cheatCategory === "dinner" ? "school-lunch" : "dinner")}
+                    className={`w-full px-3 py-2 rounded-lg text-sm font-medium ${
+                      cheatCategory === "dinner" ? "bg-meal-coral/10 text-meal-coral" : "bg-meal-sky/10 text-meal-sky"
+                    }`}
+                  >
+                    {cheatCategory === "dinner" ? "Dinner" : "Lunch"}
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setCheatGF(!cheatGF)}
+                className={`w-full px-3 py-2 rounded-lg text-sm font-medium ${
+                  cheatGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"
+                }`}
+              >
+                {cheatGF ? "✓ Gluten Free" : "Contains Gluten"}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setCheatModalOpen(false)}
+                className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
+                Cancel
+              </button>
+              <button
+                onClick={saveCheatMeal}
+                disabled={savingCheat || !cheatName.trim()}
+                className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+              >
+                {savingCheat ? "Saving..." : "Add Meal"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
