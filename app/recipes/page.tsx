@@ -13,12 +13,7 @@ export default function RecipesPage() {
   const [category, setCategory] = useState<string | null>(null)
   const [gfOnly, setGfOnly] = useState(false)
 
-  // Cheat meals
-  const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; category: string; is_gluten_free: boolean }[]>([])
-  const [showCheats, setShowCheats] = useState(false)
-  const [newCheat, setNewCheat] = useState("")
-  const [newCheatGF, setNewCheatGF] = useState(true)
-  const [newCheatCat, setNewCheatCat] = useState("protein")
+  // Cheat meals — old ingredient pools removed, now just the modal
 
   // Cheat meal modal
   const [cheatModalOpen, setCheatModalOpen] = useState(false)
@@ -67,33 +62,7 @@ export default function RecipesPage() {
     setSavingCheat(false)
   }
 
-  // Lunch box
-  const [showLunchBox, setShowLunchBox] = useState(false)
-  const [newLunchItem, setNewLunchItem] = useState("")
-  const [newLunchGF, setNewLunchGF] = useState(true)
-
-  useEffect(() => {
-    fetch("/api/cheat-meals").then((r) => r.ok ? r.json() : []).then(setCheatMeals)
-  }, [])
-
-  async function addCheat() {
-    if (!newCheat.trim()) return
-    const res = await fetch("/api/cheat-meals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newCheat.trim(), is_gluten_free: newCheatGF, category: newCheatCat }),
-    })
-    if (res.ok) {
-      const cm = await res.json()
-      setCheatMeals((prev) => [...prev, cm])
-    }
-    setNewCheat("")
-  }
-
-  async function removeCheat(id: number) {
-    await fetch(`/api/cheat-meals/${id}`, { method: "DELETE" })
-    setCheatMeals((prev) => prev.filter((c) => c.id !== id))
-  }
+  // Lunch box — hidden, re-enable later
 
   const fetchRecipes = useCallback(async () => {
     setLoading(true)
@@ -164,92 +133,7 @@ export default function RecipesPage() {
         />
       </div>
 
-      {/* Lunch Box Items */}
-      <div className="mb-6">
-        <button
-          onClick={() => setShowLunchBox(!showLunchBox)}
-          className="flex items-center gap-2 text-sm font-semibold text-meal-charcoal"
-        >
-          <span>🍱</span>
-          <span>Lunch Box Items</span>
-          {cheatMeals.filter((cm) => cm.category.startsWith("lunch-")).length > 0 && (
-            <span className="bg-meal-sky text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-              {cheatMeals.filter((cm) => cm.category.startsWith("lunch-")).length}
-            </span>
-          )}
-          <svg className={`w-4 h-4 text-meal-muted transition-transform ${showLunchBox ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-          </svg>
-        </button>
-        {showLunchBox && (
-          <div className="mt-3 bg-white rounded-xl p-4 shadow-sm">
-            <p className="text-xs text-meal-muted mb-3">Fruit, veg and snacks are pulled from your inventory automatically. Add the mains your kids like below — GF ones go to Etta, others to Jude.</p>
-            {(() => {
-              const mainItems = cheatMeals.filter((cm) => cm.category === "lunch-main")
-              return (
-                <div className="mb-3">
-                  <h4 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-1.5">🥪 Lunch Mains</h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {mainItems.map((cm) => (
-                      <span key={cm.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-meal-cream text-xs text-meal-charcoal group">
-                        {cm.name}
-                        <span className={`text-[8px] font-bold ${cm.is_gluten_free ? "text-meal-sage" : "text-meal-amber"}`}>
-                          {cm.is_gluten_free ? "GF" : "GL"}
-                        </span>
-                        <button onClick={() => removeCheat(cm.id)}
-                          className="text-meal-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </span>
-                    ))}
-                    {mainItems.length === 0 && <span className="text-xs text-meal-muted">None yet — add some below</span>}
-                  </div>
-                </div>
-              )
-            })()}
-            <div className="flex gap-1.5 mt-2">
-              <input
-                type="text"
-                value={newLunchItem}
-                onChange={(e) => setNewLunchItem(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newLunchItem.trim()) {
-                    fetch("/api/cheat-meals", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ name: newLunchItem.trim(), is_gluten_free: newLunchGF, category: "lunch-main" }),
-                    }).then((r) => r.json()).then((cm) => { setCheatMeals((prev) => [...prev, cm]); setNewLunchItem("") })
-                  }
-                }}
-                placeholder="e.g. Chicken roll, Pie, Vegemite sandwich..."
-                className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
-              />
-              <button
-                onClick={() => setNewLunchGF(!newLunchGF)}
-                className={`px-2 py-2 rounded-lg text-[10px] font-semibold shrink-0 ${newLunchGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"}`}
-              >
-                {newLunchGF ? "GF" : "Gluten"}
-              </button>
-              <button
-                onClick={() => {
-                  if (!newLunchItem.trim()) return
-                  fetch("/api/cheat-meals", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name: newLunchItem.trim(), is_gluten_free: newLunchGF, category: "lunch-main" }),
-                  }).then((r) => r.json()).then((cm) => { setCheatMeals((prev) => [...prev, cm]); setNewLunchItem("") })
-                }}
-                disabled={!newLunchItem.trim()}
-                className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50 shrink-0"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Lunch Box Items — hidden, re-enable later */}
 
       {/* Grid */}
       {loading ? (

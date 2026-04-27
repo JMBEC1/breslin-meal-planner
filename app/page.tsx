@@ -538,12 +538,7 @@ export default function PlanPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setLunchGenOpen(true)}
-            className="px-4 py-2 rounded-lg bg-meal-sky text-white text-sm font-medium hover:bg-meal-sky/80 transition-colors"
-          >
-            Generate Lunches
-          </button>
+          {/* Generate Lunches button hidden — re-enable later */}
           <button
             onClick={() => setDinnerGenOpen(true)}
             className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/80 transition-colors"
@@ -575,14 +570,14 @@ export default function PlanPage() {
         if (!isCurrentWeek) return null
 
         const todayDinner = getSlot(today, "dinner")
-        const todayLunch = getSlot(today, "lunch")
+        // const todayLunch = getSlot(today, "lunch") // hidden — re-enable later
         const tomorrowDinner = getSlot(tomorrow, "dinner")
-        const tomorrowLunch = getSlot(tomorrow, "lunch")
+        // const tomorrowLunch = getSlot(tomorrow, "lunch") // hidden — re-enable later
 
         const todayDinnerRecipe = todayDinner?.recipe_id ? recipes[todayDinner.recipe_id] : null
-        const todayLunchRecipe = todayLunch?.recipe_id ? recipes[todayLunch.recipe_id] : null
+        // const todayLunchRecipe = todayLunch?.recipe_id ? recipes[todayLunch.recipe_id] : null
         const tomorrowDinnerRecipe = tomorrowDinner?.recipe_id ? recipes[tomorrowDinner.recipe_id] : null
-        const tomorrowLunchRecipe = tomorrowLunch?.recipe_id ? recipes[tomorrowLunch.recipe_id] : null
+        // const tomorrowLunchRecipe = tomorrowLunch?.recipe_id ? recipes[tomorrowLunch.recipe_id] : null
 
         function MealHeroCard({ label, sublabel, recipe, customText, colour, day, mealType, sideIds }: {
           label: string; sublabel: string; recipe: Recipe | null; customText?: string | null; colour: string; day: DayOfWeek; mealType: MealType; sideIds?: number[]
@@ -661,14 +656,13 @@ export default function PlanPage() {
           )
         }
 
-        const todayIsWeekend = today === "saturday" || today === "sunday"
-        const tomorrowIsWeekend = tomorrow === "saturday" || tomorrow === "sunday"
+        // const todayIsWeekend = today === "saturday" || today === "sunday"
+        // const tomorrowIsWeekend = tomorrow === "saturday" || tomorrow === "sunday"
 
         // Build hero cards — skip lunch on weekends
         const heroCards = []
-        if (!todayIsWeekend) heroCards.push(<MealHeroCard key="tl" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Lunch" recipe={todayLunchRecipe} customText={todayLunch?.custom_text} colour="bg-meal-sky" day={today} mealType="lunch" sideIds={todayLunch?.side_ids} />)
+        /* Lunch hero cards hidden — re-enable later */
         heroCards.push(<MealHeroCard key="td" label={`Today — ${DAY_FULL_LABELS[today]}`} sublabel="Dinner" recipe={todayDinnerRecipe} customText={todayDinner?.custom_text} colour="bg-meal-coral" day={today} mealType="dinner" sideIds={todayDinner?.side_ids} />)
-        if (!tomorrowIsWeekend) heroCards.push(<MealHeroCard key="tml" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Lunch" recipe={tomorrowLunchRecipe} customText={tomorrowLunch?.custom_text} colour="bg-meal-sky/70" day={tomorrow} mealType="lunch" sideIds={tomorrowLunch?.side_ids} />)
         heroCards.push(<MealHeroCard key="tmd" label={`Tomorrow — ${DAY_FULL_LABELS[tomorrow]}`} sublabel="Dinner" recipe={tomorrowDinnerRecipe} customText={tomorrowDinner?.custom_text} colour="bg-meal-coral/70" day={tomorrow} mealType="dinner" sideIds={tomorrowDinner?.side_ids} />)
 
         return (
@@ -691,7 +685,7 @@ export default function PlanPage() {
                 <h3 className="text-xs font-semibold text-meal-muted uppercase tracking-wider text-center">
                   {DAY_LABELS[day]}
                 </h3>
-                {(["lunch", "dinner"] as MealType[]).map((mealType) => {
+                {(["dinner"] as MealType[]).map((mealType) => {
                   const isWeekend = day === "saturday" || day === "sunday"
                   if (mealType === "lunch" && isWeekend) return null
                   const slot = getSlot(day, mealType)
@@ -790,7 +784,7 @@ export default function PlanPage() {
               <div key={day} className="bg-white rounded-xl p-4 shadow-sm">
                 <h3 className="text-sm font-semibold text-meal-charcoal mb-3">{DAY_LABELS[day]}</h3>
                 <div className="space-y-2">
-                  {(["lunch", "dinner"] as MealType[]).map((mealType) => {
+                  {(["dinner"] as MealType[]).map((mealType) => {
                     const isWeekend = day === "saturday" || day === "sunday"
                     if (mealType === "lunch" && isWeekend) return null
                     const slot = getSlot(day, mealType)
