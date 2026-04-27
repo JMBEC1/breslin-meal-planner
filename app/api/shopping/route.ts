@@ -129,7 +129,23 @@ export async function GET(req: NextRequest) {
     const planUpdated = new Date(plan.updated_at).getTime()
     const listUpdated = new Date(existing.updated_at).getTime()
     if (planUpdated > listUpdated) {
+      // Preserve custom items and checked state during auto-regeneration
+      const oldItems = typeof existing.items === "string" ? JSON.parse(existing.items) : existing.items
+      const customItems = oldItems.filter((i: { from_recipe_ids: number[] }) => !i.from_recipe_ids || i.from_recipe_ids.length === 0)
+      const checkedNames = new Set(
+        oldItems.filter((i: { checked: boolean }) => i.checked).map((i: { name: string }) => i.name.toLowerCase())
+      )
+
       const result = await generateList(plan)
+
+      for (const item of result.items || []) {
+        if (checkedNames.has(item.name.toLowerCase())) item.checked = true
+      }
+      const generatedNames = new Set((result.items || []).map((i: { name: string }) => i.name.toLowerCase()))
+      for (const custom of customItems) {
+        if (!generatedNames.has(custom.name.toLowerCase())) result.items.push(custom)
+      }
+      await upsertShoppingList(plan.id, result.items)
       return NextResponse.json(result)
     }
     return NextResponse.json({ ...existing, plan_id: plan.id })
