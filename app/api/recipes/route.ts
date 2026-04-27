@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getRecipes, insertRecipe } from "@/lib/db"
 import { fetchRecipeImage } from "@/lib/images"
+import { categoriseIngredient } from "@/lib/shopping"
 
 export const dynamic = "force-dynamic"
 
@@ -27,7 +28,10 @@ export async function POST(req: NextRequest) {
     cook_time_mins: data.cook_time_mins || null,
     servings: data.servings || null,
     description: data.description?.trim() || "",
-    ingredients: data.ingredients || [],
+    ingredients: (data.ingredients || []).map((ing: { name: string; quantity?: string; unit?: string; aisle?: string; is_gluten_free?: boolean }) => ({
+      ...ing,
+      aisle: ing.aisle && ing.aisle !== "other" ? ing.aisle : categoriseIngredient(ing.name),
+    })),
     instructions: data.instructions?.trim() || "",
     tags: data.tags || [],
     source_url: data.source_url || null,

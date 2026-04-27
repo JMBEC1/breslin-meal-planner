@@ -26,11 +26,23 @@ export default function RecipesPage() {
   const [cheatServings, setCheatServings] = useState("4")
   const [cheatGF, setCheatGF] = useState(true)
   const [cheatCategory, setCheatCategory] = useState<"dinner" | "school-lunch">("dinner")
+  const [cheatIngredients, setCheatIngredients] = useState("")
   const [savingCheat, setSavingCheat] = useState(false)
 
   async function saveCheatMeal() {
     if (!cheatName.trim()) return
     setSavingCheat(true)
+
+    // Parse ingredients from comma/newline separated text
+    const ingNames = cheatIngredients.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
+    const ingredients = ingNames.map((name) => ({
+      name,
+      quantity: "1",
+      unit: "",
+      aisle: "other", // server will auto-categorise
+      is_gluten_free: true,
+    }))
+
     const res = await fetch("/api/recipes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,7 +52,7 @@ export default function RecipesPage() {
         is_gluten_free: cheatGF,
         servings: parseInt(cheatServings) || 4,
         description: "Quick meal — no recipe needed",
-        ingredients: [],
+        ingredients,
         instructions: "",
         tags: ["cheat-meal"],
       }),
@@ -49,6 +61,7 @@ export default function RecipesPage() {
       setCheatModalOpen(false)
       setCheatName("")
       setCheatServings("4")
+      setCheatIngredients("")
       fetchRecipes()
     }
     setSavingCheat(false)
@@ -308,6 +321,17 @@ export default function RecipesPage() {
                     {cheatCategory === "dinner" ? "Dinner" : "Lunch"}
                   </button>
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Ingredients</label>
+                <textarea
+                  value={cheatIngredients}
+                  onChange={(e) => setCheatIngredients(e.target.value)}
+                  placeholder={"Sausages\nChips\nBaked beans"}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 resize-none"
+                />
+                <p className="text-[10px] text-meal-muted mt-1">One per line or comma-separated. These go on the shopping list.</p>
               </div>
               <button
                 onClick={() => setCheatGF(!cheatGF)}
