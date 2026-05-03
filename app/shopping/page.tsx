@@ -522,8 +522,14 @@ export default function ShoppingPage() {
                         {item.unit && <span className="font-medium"> {item.unit}</span>}
                         {" "}{item.name}
                       </span>
+                      {item.running_low && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">⚠ Low</span>}
                       {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
                     </button>
+                    {item.running_low && item.inventory_note && !item.checked && (
+                      <div className="px-4 pb-2 -mt-1 ml-8">
+                        <p className="text-xs text-amber-700 font-medium">{item.inventory_note} — top up</p>
+                      </div>
+                    )}
                     {item.alternative_note && !item.checked && (
                       <div className="px-4 pb-2 -mt-1 ml-8">
                         <p className="text-xs text-meal-coral font-medium">💡 {item.alternative_note}</p>

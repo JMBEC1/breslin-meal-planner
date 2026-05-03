@@ -94,6 +94,8 @@ function getSqlite(): Database.Database {
       created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
   `)
+  // Migration: add status column to inventory if missing (sqlite has no IF NOT EXISTS for ADD COLUMN).
+  try { _sqlite.exec("ALTER TABLE inventory ADD COLUMN status TEXT NOT NULL DEFAULT 'in_stock'") } catch { /* already exists */ }
   return _sqlite
 }
 
@@ -205,6 +207,8 @@ async function getNeon(): Promise<any> {
   `
   // Migration: add category column if missing
   try { await sql`ALTER TABLE cheat_meals ADD COLUMN category TEXT NOT NULL DEFAULT 'dinner'` } catch { /* already exists */ }
+  // Migration: 3-state inventory status (in_stock / low / out). Existing rows backfill to in_stock via default.
+  try { await sql`ALTER TABLE inventory ADD COLUMN status TEXT NOT NULL DEFAULT 'in_stock'` } catch { /* already exists */ }
   _neon = sql
   return sql
 }
@@ -618,10 +622,15 @@ interface InventoryRow {
   quantity: string; unit: string; aisle: string; recipe_id: number | null
   servings: number | null; is_gluten_free: number; notes: string | null
   added_at: string; expires_at: string | null
+  status: string | null
 }
 
 function parseInventoryItem(row: InventoryRow) {
-  return { ...row, is_gluten_free: !!row.is_gluten_free }
+  return {
+    ...row,
+    is_gluten_free: !!row.is_gluten_free,
+    status: (row.status as "in_stock" | "low" | "out") || "in_stock",
+  }
 }
 
 export async function getInventory(location?: string) {
@@ -666,13 +675,14 @@ export async function insertInventoryItem(data: {
   return parseInventoryItem(db.prepare("SELECT * FROM inventory WHERE id = ?").get(result.lastInsertRowid) as InventoryRow)
 }
 
-export async function updateInventoryItem(id: number, data: { servings?: number; quantity?: string; notes?: string; location?: string }) {
+export async function updateInventoryItem(id: number, data: { servings?: number; quantity?: string; notes?: string; location?: string; status?: "in_stock" | "low" | "out" }) {
   if (USE_NEON) {
     const sql = await getNeon()
     if (data.servings !== undefined) await sql`UPDATE inventory SET servings = ${data.servings} WHERE id = ${id}`
     if (data.quantity !== undefined) await sql`UPDATE inventory SET quantity = ${data.quantity} WHERE id = ${id}`
     if (data.notes !== undefined) await sql`UPDATE inventory SET notes = ${data.notes} WHERE id = ${id}`
     if (data.location !== undefined) await sql`UPDATE inventory SET location = ${data.location} WHERE id = ${id}`
+    if (data.status !== undefined) await sql`UPDATE inventory SET status = ${data.status} WHERE id = ${id}`
     const rows = await sql`SELECT * FROM inventory WHERE id = ${id}`
     return rows.length ? parseInventoryItem(rows[0] as InventoryRow) : null
   }
@@ -681,6 +691,7 @@ export async function updateInventoryItem(id: number, data: { servings?: number;
   if (data.quantity !== undefined) db.prepare("UPDATE inventory SET quantity = ? WHERE id = ?").run(data.quantity, id)
   if (data.notes !== undefined) db.prepare("UPDATE inventory SET notes = ? WHERE id = ?").run(data.notes, id)
   if (data.location !== undefined) db.prepare("UPDATE inventory SET location = ? WHERE id = ?").run(data.location, id)
+  if (data.status !== undefined) db.prepare("UPDATE inventory SET status = ? WHERE id = ?").run(data.status, id)
   const row = db.prepare("SELECT * FROM inventory WHERE id = ?").get(id) as InventoryRow | undefined
   return row ? parseInventoryItem(row) : null
 }

@@ -63,15 +63,25 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
   for (const item of items) {
     const match = inventory.find((inv) => fuzzyMatch(item.name, inv.name))
     if (match) {
-      item.in_inventory = true
       const loc = match.location.charAt(0).toUpperCase() + match.location.slice(1)
-      item.inventory_note = `${match.quantity}${match.unit ? " " + match.unit : ""} in ${loc}`
+      const status = match.status || "in_stock"
+      if (status === "in_stock") {
+        // We have it — don't add to main list, surface in "Already Have" section.
+        item.in_inventory = true
+        item.inventory_note = `In stock — ${loc}`
+      } else if (status === "low") {
+        // Still have some, but flag for top-up. Item stays in main shopping list.
+        item.running_low = true
+        item.inventory_note = `Running low — ${loc}`
+      }
+      // status === "out" → fall through, treat as a normal need (no inventory linkage).
     } else {
       // Look for alternatives — same food family but different cut/variety
       const alt = inventory.find((inv) => partialMatch(item.name, inv.name))
-      if (alt) {
+      if (alt && alt.status !== "out") {
         const loc = alt.location.charAt(0).toUpperCase() + alt.location.slice(1)
-        item.alternative_note = `You have ${alt.name} (${alt.quantity}${alt.unit ? " " + alt.unit : ""} in ${loc})`
+        const lowSuffix = alt.status === "low" ? " — running low" : ""
+        item.alternative_note = `You have ${alt.name} (${loc}${lowSuffix})`
       }
     }
   }

@@ -123,6 +123,7 @@ export interface ShoppingItem {
   in_inventory?: boolean
   inventory_note?: string
   alternative_note?: string
+  running_low?: boolean
 }
 
 export interface ShoppingList {
@@ -157,6 +158,13 @@ export interface RecipeRatingSummary {
 
 export type InventoryLocation = "freezer" | "fridge" | "pantry" | "household"
 export type InventoryItemType = "ingredient" | "frozen_meal" | "ready_meal" | "batch_cook"
+export type StockStatus = "in_stock" | "low" | "out"
+
+export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
+  in_stock: "In stock",
+  low: "Running low",
+  out: "Out",
+}
 
 export const LOCATION_LABELS: Record<InventoryLocation, string> = {
   freezer: "Freezer",
@@ -179,6 +187,7 @@ export interface InventoryItem {
   notes: string | null
   added_at: string
   expires_at: string | null
+  status: StockStatus
 }
 
 export interface NeedItem {

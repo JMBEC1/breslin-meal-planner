@@ -2,7 +2,35 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { LOCATION_LABELS, AISLE_LABELS } from "@/types"
-import type { InventoryItem, InventoryLocation, AisleCategory } from "@/types"
+import type { InventoryItem, InventoryLocation, AisleCategory, StockStatus } from "@/types"
+
+const STATUS_CYCLE: Record<StockStatus, StockStatus> = {
+  in_stock: "low",
+  low: "out",
+  out: "in_stock",
+}
+
+function StatusPill({ status, onClick }: { status: StockStatus; onClick: () => void }) {
+  const styles: Record<StockStatus, string> = {
+    in_stock: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
+    low: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
+    out: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
+  }
+  const label: Record<StockStatus, string> = {
+    in_stock: "✓ In stock",
+    low: "⚠ Low",
+    out: "✗ Out",
+  }
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors shrink-0 ${styles[status]}`}
+      title="Tap to change status"
+    >
+      {label[status]}
+    </button>
+  )
+}
 
 const ITEM_TYPE_LABELS: Record<string, string> = {
   batch_cook: "Batch Cooked",
@@ -77,6 +105,17 @@ export default function InventoryPage() {
     setNewQty("")
     setNewUnit("")
     fetchItems()
+  }
+
+  async function cycleStatus(item: InventoryItem) {
+    const current: StockStatus = (item.status as StockStatus) || "in_stock"
+    const next = STATUS_CYCLE[current]
+    setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, status: next } : i))
+    await fetch(`/api/inventory/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: next }),
+    })
   }
 
   async function moveItem(item: InventoryItem, newLocation: InventoryLocation) {
@@ -491,15 +530,20 @@ export default function InventoryPage() {
                           <button onClick={() => setEditingId(null)} className="text-[10px] text-meal-muted">Cancel</button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 mt-0.5 cursor-pointer" onClick={() => { setEditingId(item.id); setEditQty(item.quantity); setEditUnit(item.unit) }}>
+                        <div className="flex items-center gap-2 mt-0.5">
                           {item.quantity !== "1" || item.unit ? (
-                            <span className="text-xs text-meal-muted hover:text-meal-sage">{item.quantity}{item.unit ? ` ${item.unit}` : ""} <span className="text-meal-sage/50">edit</span></span>
-                          ) : (
-                            <span className="text-xs text-meal-muted hover:text-meal-sage">Tap to set qty</span>
-                          )}
+                            <span
+                              onClick={() => { setEditingId(item.id); setEditQty(item.quantity); setEditUnit(item.unit) }}
+                              className="text-[10px] text-meal-muted/70 hover:text-meal-sage cursor-pointer"
+                              title="Tap to edit quantity"
+                            >
+                              {item.quantity}{item.unit ? ` ${item.unit}` : ""}
+                            </span>
+                          ) : null}
                         </div>
                       )}
                     </div>
+                    <StatusPill status={(item.status as StockStatus) || "in_stock"} onClick={() => cycleStatus(item)} />
                     <select value={item.location} onChange={(e) => moveItem(item, e.target.value as InventoryLocation)}
                       className="text-[10px] px-1.5 py-1 rounded bg-meal-cream border border-meal-warm text-meal-charcoal focus:outline-none">
                       <option value="fridge">🥬 Fridge</option><option value="freezer">❄️ Freezer</option><option value="pantry">🏠 Pantry</option><option value="household">🧹 Household</option>

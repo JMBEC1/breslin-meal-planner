@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRecipe, getInventory, updateInventoryItem, deleteInventoryItem } from "@/lib/db"
+import { getRecipe, getInventory, updateInventoryItem } from "@/lib/db"
 export const dynamic = "force-dynamic"
 
 const STOP_WORDS = new Set(["a", "an", "of", "the", "in", "to", "for", "and", "or", "with", "fresh", "dried", "raw", "cooked"])
@@ -38,45 +38,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ deducted: [], message: "No ingredients found" })
   }
 
-  // Get all inventory items
+  // Get all inventory items. We no longer auto-deduct quantities — under the new
+  // status model, cooking a meal flips matched items to status='out' so the user
+  // sees them flagged in inventory + on the next shopping list, but the items aren't
+  // destroyed (the user can flip them back to in_stock if they still have some left).
   const inventory = await getInventory()
   const deducted: { name: string; from: string; removed: boolean }[] = []
   const usedInventoryIds = new Set<number>()
 
   for (const ing of allIngredients) {
-    // Find matching inventory item (not already used in this cook)
     const match = inventory.find((inv) =>
-      !usedInventoryIds.has(inv.id) && fuzzyMatch(ing.name, inv.name)
+      !usedInventoryIds.has(inv.id) && fuzzyMatch(ing.name, inv.name) && inv.status !== "out"
     )
     if (!match) continue
 
-    // Try numeric deduction
-    const invQty = parseFloat(match.quantity)
-    const ingQty = parseFloat(ing.quantity)
-
-    if (!isNaN(invQty) && !isNaN(ingQty) && ingQty > 0) {
-      const remaining = invQty - ingQty
-      if (remaining <= 0) {
-        await deleteInventoryItem(match.id)
-        usedInventoryIds.add(match.id)
-        deducted.push({ name: match.name, from: match.location, removed: true })
-      } else {
-        await updateInventoryItem(match.id, { quantity: String(remaining) })
-        usedInventoryIds.add(match.id)
-        deducted.push({ name: match.name, from: match.location, removed: false })
-      }
-    } else {
-      // Non-numeric quantity — just remove the item
-      await deleteInventoryItem(match.id)
-      usedInventoryIds.add(match.id)
-      deducted.push({ name: match.name, from: match.location, removed: true })
-    }
+    await updateInventoryItem(match.id, { status: "out" })
+    usedInventoryIds.add(match.id)
+    // `removed: false` to mean "still in inventory, flagged" — semantic preserved.
+    deducted.push({ name: match.name, from: match.location, removed: false })
   }
 
   return NextResponse.json({
     deducted,
     message: deducted.length > 0
-      ? `Updated ${deducted.length} inventory items`
+      ? `Flagged ${deducted.length} item${deducted.length === 1 ? "" : "s"} as out`
       : "No matching inventory items found",
   })
 }
