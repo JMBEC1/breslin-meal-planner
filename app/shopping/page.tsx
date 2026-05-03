@@ -379,6 +379,92 @@ export default function ShoppingPage() {
         </div>
       </div>
 
+      {/* Staples panel — appears directly under the Shopping List header when toggled */}
+      {showStaples && (
+        <div className="mb-4 bg-white rounded-xl p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-meal-charcoal mb-1">Your Staples</h2>
+          <p className="text-sm text-meal-muted mb-4">
+            Basics you always need (bread, milk, GF bread). Tap <span className="font-medium">+ List</span> when you&apos;re running out to add to this week&apos;s shopping.
+          </p>
+
+          {/* Add new staple */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newStapleName}
+              onChange={(e) => setNewStapleName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addNewStaple()}
+              placeholder="e.g. Milk, GF Bread..."
+              className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+            />
+            <select
+              value={newStapleAisle}
+              onChange={(e) => setNewStapleAisle(e.target.value as AisleCategory)}
+              className="px-2 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm text-meal-charcoal focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
+            >
+              {AISLE_OPTIONS.map(a => (
+                <option key={a} value={a}>{AISLE_LABELS[a]}</option>
+              ))}
+            </select>
+            <button
+              onClick={addNewStaple}
+              disabled={!newStapleName.trim()}
+              className="px-3 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
+
+          {/* Staples list */}
+          {staples.length === 0 ? (
+            <p className="text-sm text-meal-muted text-center py-2">No staples yet — add your first above.</p>
+          ) : (
+            <div className="space-y-1">
+              {staples.map((s) => {
+                const status = stapleStatus[s.id]
+                return (
+                  <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
+                    <span className="flex-1 text-sm text-meal-charcoal truncate">{s.name}</span>
+                    <span className="text-meal-muted text-[11px] hidden sm:inline">
+                      {AISLE_LABELS[s.aisle as AisleCategory] || s.aisle}
+                    </span>
+                    {s.active && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-meal-sage/10 text-meal-sage" title="Auto-added to every list">
+                        Auto
+                      </span>
+                    )}
+                    {planId && (
+                      <button
+                        onClick={() => addStapleToShoppingList(s)}
+                        disabled={status === "saving"}
+                        className={`text-[10px] font-medium px-2 py-1 rounded transition-colors ${
+                          status === "added"
+                            ? "bg-meal-sage text-white"
+                            : status === "saving"
+                              ? "bg-meal-warm text-meal-muted"
+                              : "text-meal-sage hover:bg-meal-sage/10"
+                        }`}
+                      >
+                        {status === "added" ? "✓ Added" : status === "saving" ? "..." : "+ List"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteStapleEntry(s.id)}
+                      className="text-meal-muted hover:text-red-500 transition-colors"
+                      title="Remove staple"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Quick add — always visible */}
       {planId && !loading && (
         <div className="mb-4 flex gap-2">
@@ -604,91 +690,6 @@ export default function ShoppingPage() {
         </div>
       )}
 
-      {/* Staples panel */}
-      {showStaples && (
-        <div className="mt-6 bg-white rounded-xl p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-meal-charcoal mb-1">Your Staples</h2>
-          <p className="text-sm text-meal-muted mb-4">
-            Basics you always need (bread, milk, GF bread). Tap <span className="font-medium">+ List</span> when you&apos;re running out to add to this week&apos;s shopping.
-          </p>
-
-          {/* Add new staple */}
-          <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              value={newStapleName}
-              onChange={(e) => setNewStapleName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addNewStaple()}
-              placeholder="e.g. Milk, GF Bread..."
-              className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
-            />
-            <select
-              value={newStapleAisle}
-              onChange={(e) => setNewStapleAisle(e.target.value as AisleCategory)}
-              className="px-2 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm text-meal-charcoal focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
-            >
-              {AISLE_OPTIONS.map(a => (
-                <option key={a} value={a}>{AISLE_LABELS[a]}</option>
-              ))}
-            </select>
-            <button
-              onClick={addNewStaple}
-              disabled={!newStapleName.trim()}
-              className="px-3 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-
-          {/* Staples list */}
-          {staples.length === 0 ? (
-            <p className="text-sm text-meal-muted text-center py-2">No staples yet — add your first above.</p>
-          ) : (
-            <div className="space-y-1">
-              {staples.map((s) => {
-                const status = stapleStatus[s.id]
-                return (
-                  <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-meal-cream group">
-                    <span className="flex-1 text-sm text-meal-charcoal truncate">{s.name}</span>
-                    <span className="text-meal-muted text-[11px] hidden sm:inline">
-                      {AISLE_LABELS[s.aisle as AisleCategory] || s.aisle}
-                    </span>
-                    {s.active && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-meal-sage/10 text-meal-sage" title="Auto-added to every list">
-                        Auto
-                      </span>
-                    )}
-                    {planId && (
-                      <button
-                        onClick={() => addStapleToShoppingList(s)}
-                        disabled={status === "saving"}
-                        className={`text-[10px] font-medium px-2 py-1 rounded transition-colors ${
-                          status === "added"
-                            ? "bg-meal-sage text-white"
-                            : status === "saving"
-                              ? "bg-meal-warm text-meal-muted"
-                              : "text-meal-sage hover:bg-meal-sage/10"
-                        }`}
-                      >
-                        {status === "added" ? "✓ Added" : status === "saving" ? "..." : "+ List"}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => deleteStapleEntry(s.id)}
-                      className="text-meal-muted hover:text-red-500 transition-colors"
-                      title="Remove staple"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
