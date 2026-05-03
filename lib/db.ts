@@ -545,6 +545,16 @@ export async function upsertStaple(data: {
   }
 }
 
+export async function deleteStaple(id: number) {
+  if (USE_NEON) {
+    const sql = await getNeon()
+    await sql`DELETE FROM staples WHERE id = ${id}`
+    return
+  }
+  const db = getSqlite()
+  db.prepare("DELETE FROM staples WHERE id = ?").run(id)
+}
+
 export async function incrementStapleFrequency(name: string) {
   if (USE_NEON) {
     const sql = await getNeon()
