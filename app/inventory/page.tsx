@@ -62,6 +62,68 @@ export default function InventoryPage() {
   const [scannedItems, setScannedItems] = useState<{ name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean; selected: boolean }[] | null>(null)
   const [savingScanned, setSavingScanned] = useState(false)
 
+  // Leftover modal state
+  const [showLeftover, setShowLeftover] = useState(false)
+  const [lfRecipes, setLfRecipes] = useState<Array<{ id: number; title: string; is_gluten_free: boolean }>>([])
+  const [lfRecipeId, setLfRecipeId] = useState("")
+  const [lfName, setLfName] = useState("")
+  const [lfPortions, setLfPortions] = useState("1")
+  const [lfLocation, setLfLocation] = useState<InventoryLocation>("fridge")
+  const [lfIsGF, setLfIsGF] = useState(true)
+  const [lfSaving, setLfSaving] = useState(false)
+
+  async function openLeftover() {
+    setShowLeftover(true)
+    if (lfRecipes.length === 0) {
+      const res = await fetch("/api/recipes")
+      if (res.ok) {
+        const all = await res.json()
+        setLfRecipes(all.map((r: { id: number; title: string; is_gluten_free: boolean }) => ({ id: r.id, title: r.title, is_gluten_free: r.is_gluten_free })))
+      }
+    }
+  }
+
+  function pickLeftoverRecipe(id: string) {
+    setLfRecipeId(id)
+    if (id) {
+      const r = lfRecipes.find((x: { id: number; title: string; is_gluten_free: boolean }) => String(x.id) === id)
+      if (r) {
+        setLfName(r.title)
+        setLfIsGF(r.is_gluten_free)
+      }
+    }
+  }
+
+  async function saveLeftover() {
+    if (!lfName.trim() || Number(lfPortions) < 1) return
+    setLfSaving(true)
+    await fetch("/api/inventory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: lfName.trim(),
+        location: lfLocation,
+        item_type: "batch_cook",
+        quantity: lfPortions,
+        unit: "portions",
+        aisle: lfLocation === "freezer" ? "frozen" : "other",
+        recipe_id: lfRecipeId ? Number(lfRecipeId) : null,
+        servings: Number(lfPortions),
+        is_gluten_free: lfIsGF,
+        notes: lfRecipeId ? `Leftover from ${lfName.trim()}` : "Leftover",
+      }),
+    })
+    setLfSaving(false)
+    setShowLeftover(false)
+    setLfRecipeId("")
+    setLfName("")
+    setLfPortions("1")
+    setLfLocation("fridge")
+    setLfIsGF(true)
+    if (lfLocation === location) fetchItems()
+    else setLocation(lfLocation) // jump to the location it was saved to
+  }
+
   const fetchItems = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/inventory?location=${location}`)
@@ -366,7 +428,18 @@ export default function InventoryPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 md:px-6 py-6">
-      <h1 className="text-2xl font-bold text-meal-charcoal mb-4">Pantry</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-meal-charcoal">Pantry</h1>
+        <button
+          onClick={openLeftover}
+          className="px-3 py-1.5 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/90 transition-colors flex items-center gap-1.5"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Leftover
+        </button>
+      </div>
 
       {/* Search bar */}
       <div className="relative mb-4">
@@ -796,6 +869,93 @@ export default function InventoryPage() {
                   {DAY_LABELS[day]} Dinner
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Leftover modal */}
+      {showLeftover && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4" onClick={() => setShowLeftover(false)}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 pb-3 border-b border-meal-cream">
+              <h3 className="text-lg font-semibold text-meal-charcoal">Add a leftover</h3>
+              <p className="text-xs text-meal-muted mt-0.5">Cooked too much? Stash a portion. Pick a recipe to link it back, or just type a name.</p>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-meal-muted mb-1">From recipe (optional)</label>
+                <select
+                  value={lfRecipeId}
+                  onChange={(e) => pickLeftoverRecipe(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
+                >
+                  <option value="">— Custom (type below) —</option>
+                  {lfRecipes.slice().sort((a, b) => a.title.localeCompare(b.title)).map(r => (
+                    <option key={r.id} value={r.id}>{r.title}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-meal-muted mb-1">Name</label>
+                <input
+                  type="text"
+                  value={lfName}
+                  onChange={(e) => setLfName(e.target.value)}
+                  placeholder="e.g. Beef stew, Lasagne portion..."
+                  className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
+                />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-meal-muted mb-1">Portions</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={lfPortions}
+                    onChange={(e) => setLfPortions(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-meal-muted mb-1">Where</label>
+                  <div className="flex gap-1 bg-meal-cream rounded-lg p-1">
+                    <button
+                      onClick={() => setLfLocation("fridge")}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${lfLocation === "fridge" ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"}`}
+                    >
+                      🥬 Fridge
+                    </button>
+                    <button
+                      onClick={() => setLfLocation("freezer")}
+                      className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${lfLocation === "freezer" ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"}`}
+                    >
+                      ❄️ Freezer
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-meal-charcoal cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={lfIsGF}
+                  onChange={(e) => setLfIsGF(e.target.checked)}
+                  className="rounded border-meal-warm text-meal-sage focus:ring-meal-sage"
+                />
+                Gluten-free
+              </label>
+            </div>
+            <div className="p-5 pt-3 flex gap-2 border-t border-meal-cream">
+              <button onClick={() => setShowLeftover(false)} className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
+                Cancel
+              </button>
+              <button
+                onClick={saveLeftover}
+                disabled={lfSaving || !lfName.trim() || Number(lfPortions) < 1}
+                className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+              >
+                {lfSaving ? "Saving..." : `Add ${lfPortions} portion${Number(lfPortions) === 1 ? "" : "s"}`}
+              </button>
             </div>
           </div>
         </div>
