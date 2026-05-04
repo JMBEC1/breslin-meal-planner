@@ -19,6 +19,29 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
   const [batchEating, setBatchEating] = useState("4")
   const [batchSaving, setBatchSaving] = useState(false)
   const [batchDone, setBatchDone] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState("")
+  const [savingTitle, setSavingTitle] = useState(false)
+
+  async function saveTitle() {
+    const next = titleDraft.trim()
+    if (!next || !recipe || next === recipe.title) {
+      setEditingTitle(false)
+      return
+    }
+    setSavingTitle(true)
+    const res = await fetch(`/api/recipes/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: next }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setRecipe(updated)
+    }
+    setSavingTitle(false)
+    setEditingTitle(false)
+  }
 
   useEffect(() => {
     fetch(`/api/recipes/${id}`)
@@ -57,8 +80,45 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Title + meta */}
       <div className="flex flex-wrap items-start gap-3 mb-4">
-        <h1 className="text-3xl font-bold text-meal-charcoal flex-1">{recipe.title}</h1>
-        {!recipe.image_url && <GFBadge isGlutenFree={recipe.is_gluten_free} size="md" />}
+        {editingTitle ? (
+          <div className="flex-1 flex items-center gap-2">
+            <input
+              type="text"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") setEditingTitle(false) }}
+              autoFocus
+              className="flex-1 text-3xl font-bold text-meal-charcoal bg-meal-cream border border-meal-warm rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-meal-sage"
+            />
+            <button
+              onClick={saveTitle}
+              disabled={savingTitle}
+              className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover disabled:opacity-50"
+            >
+              {savingTitle ? "..." : "Save"}
+            </button>
+            <button
+              onClick={() => setEditingTitle(false)}
+              className="px-3 py-2 rounded-lg text-meal-muted text-sm hover:text-meal-charcoal"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-3xl font-bold text-meal-charcoal flex-1">{recipe.title}</h1>
+            <button
+              onClick={() => { setTitleDraft(recipe.title); setEditingTitle(true) }}
+              title="Rename recipe"
+              className="p-2 rounded-lg text-meal-muted hover:text-meal-sage hover:bg-meal-cream transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+              </svg>
+            </button>
+          </>
+        )}
+        {!recipe.image_url && !editingTitle && <GFBadge isGlutenFree={recipe.is_gluten_free} size="md" />}
       </div>
 
       {recipe.description && (

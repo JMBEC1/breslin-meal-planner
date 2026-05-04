@@ -62,8 +62,10 @@ const PROTEIN_GROUPS: Array<{ key: string; label: string; emoji: string; keyword
   { key: "chicken", label: "Chicken",      emoji: "🍗", keywords: ["chicken", "poultry"] },
   { key: "pork",    label: "Pork",         emoji: "🥓", keywords: ["pork", "bacon", "ham", "sausage", "chorizo", "prosciutto"] },
   { key: "lamb",    label: "Lamb",         emoji: "🐑", keywords: ["lamb"] },
-  { key: "fish",    label: "Fish & Seafood", emoji: "🐟", keywords: ["fish", "salmon", "tuna", "prawn", "shrimp", "cod", "trout", "barramundi", "snapper", "calamari", "squid", "seafood"] },
-  { key: "veggie",  label: "Veggie",       emoji: "🥗", keywords: ["vegetarian", "vegan", "veggie", "tofu", "halloumi", "paneer", "lentil", "chickpea"] },
+  { key: "duck",    label: "Duck & Game",  emoji: "🦆", keywords: ["duck", "venison", "rabbit", "quail", "pheasant"] },
+  { key: "turkey",  label: "Turkey",       emoji: "🦃", keywords: ["turkey"] },
+  { key: "fish",    label: "Fish & Seafood", emoji: "🐟", keywords: ["fish", "salmon", "tuna", "prawn", "shrimp", "cod", "trout", "barramundi", "snapper", "calamari", "squid", "seafood", "mussel", "scallop", "anchov"] },
+  { key: "veggie",  label: "Veggie",       emoji: "🥗", keywords: ["vegetarian", "vegan", "veggie", "tofu", "halloumi", "paneer", "lentil", "chickpea", "mozzarella", "feta", "ricotta", "egg "] },
 ]
 
 function getProteinGroup(r: { title?: string; ingredients?: Array<{ name?: string }> }): string {
