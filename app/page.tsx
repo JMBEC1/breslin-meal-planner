@@ -6,12 +6,23 @@ import { useRouter } from "next/navigation"
 import { DAYS, DAY_LABELS } from "@/types"
 import type { MealSlot, DayOfWeek, MealType, Recipe } from "@/types"
 
+// Use LOCAL date components, not UTC, when serialising YYYY-MM-DD. toISOString()
+// converts to UTC which shifts the date for non-UTC timezones at certain hours
+// (Sydney mornings = still previous day in UTC), causing weekStart to land on
+// Sunday instead of Monday and saving plans against the wrong week key.
+function fmtLocalDate(d: Date): string {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
 function getMonday(date: Date): string {
   const d = new Date(date)
   const day = d.getDay()
   const diff = d.getDate() - day + (day === 0 ? -6 : 1)
   d.setDate(diff)
-  return d.toISOString().split("T")[0]
+  return fmtLocalDate(d)
 }
 
 function formatWeek(monday: string): string {
@@ -25,7 +36,7 @@ function formatWeek(monday: string): string {
 function shiftWeek(monday: string, delta: number): string {
   const d = new Date(monday + "T00:00:00")
   d.setDate(d.getDate() + delta * 7)
-  return d.toISOString().split("T")[0]
+  return fmtLocalDate(d)
 }
 
 function getTodayDay(): DayOfWeek {
