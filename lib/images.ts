@@ -124,3 +124,30 @@ export function fetchRecipeImage(title: string): string {
   }
   return GENERIC_FOOD_IMAGES[Math.abs(hash) % GENERIC_FOOD_IMAGES.length]
 }
+
+/** Suggestions for the "change image" UI on a meal card. Returns up to N de-duped
+ *  candidate URLs: every keyword-matched image whose key appears in the title,
+ *  followed by the generic fallbacks. Excludes anything matching `excludeUrl`
+ *  (the current image — no point showing it). */
+export function suggestRecipeImages(title: string, excludeUrl?: string, limit = 8): string[] {
+  const lower = title.toLowerCase()
+  const candidates: string[] = []
+  const seen = new Set<string>()
+
+  function add(url: string) {
+    if (!url || seen.has(url) || url === excludeUrl) return
+    seen.add(url)
+    candidates.push(url)
+  }
+
+  // 1. All keyword-matched images, in declaration order
+  for (const [keyword, url] of Object.entries(FOOD_IMAGES)) {
+    const variants = [keyword, keyword.replace(/_/g, " "), keyword.replace(/_/g, "-")]
+    if (variants.some(v => lower.includes(v))) add(url)
+  }
+
+  // 2. All generic fallbacks
+  for (const url of GENERIC_FOOD_IMAGES) add(url)
+
+  return candidates.slice(0, limit)
+}
