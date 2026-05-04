@@ -54,6 +54,28 @@ const DAY_FULL_LABELS: Record<DayOfWeek, string> = {
   thursday: "Thursday", friday: "Friday", saturday: "Saturday", sunday: "Sunday",
 }
 
+// Recipe grouping for the meal picker. Inferred from title + ingredient names
+// against keyword lists. Priority order matters: a recipe with both beef and
+// chicken is bucketed by whichever comes first below.
+const PROTEIN_GROUPS: Array<{ key: string; label: string; emoji: string; keywords: string[] }> = [
+  { key: "beef",    label: "Beef",         emoji: "🥩", keywords: ["beef", "steak", "mince", "burger", "bolognese", "lasagne", "lasagna", "meatloaf", "meatball", "brisket"] },
+  { key: "chicken", label: "Chicken",      emoji: "🍗", keywords: ["chicken", "poultry"] },
+  { key: "pork",    label: "Pork",         emoji: "🥓", keywords: ["pork", "bacon", "ham", "sausage", "chorizo", "prosciutto"] },
+  { key: "lamb",    label: "Lamb",         emoji: "🐑", keywords: ["lamb"] },
+  { key: "fish",    label: "Fish & Seafood", emoji: "🐟", keywords: ["fish", "salmon", "tuna", "prawn", "shrimp", "cod", "trout", "barramundi", "snapper", "calamari", "squid", "seafood"] },
+  { key: "veggie",  label: "Veggie",       emoji: "🥗", keywords: ["vegetarian", "vegan", "veggie", "tofu", "halloumi", "paneer", "lentil", "chickpea"] },
+]
+
+function getProteinGroup(r: { title?: string; ingredients?: Array<{ name?: string }> }): string {
+  const title = (r.title ?? "").toLowerCase()
+  const ingredientText = (r.ingredients ?? []).map(i => (i.name ?? "").toLowerCase()).join(" ")
+  const haystack = `${title} ${ingredientText}`
+  for (const g of PROTEIN_GROUPS) {
+    if (g.keywords.some(k => haystack.includes(k))) return g.key
+  }
+  return "other"
+}
+
 interface DinnerSuggestion {
   recipe_id: number | null
   title: string
@@ -74,6 +96,7 @@ export default function PlanPage() {
   const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType; addSide?: boolean } | null>(null)
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
+  const [pickerSearch, setPickerSearch] = useState("")
   const [freezerItems, setFreezerItems] = useState<{ id: number; name: string; servings: number | null; item_type: string; location: string }[]>([])
   const [cheatMeals, setCheatMeals] = useState<{ id: number; name: string; category: string; is_gluten_free: boolean }[]>([])
   const [cookToast, setCookToast] = useState<{ message: string; visible: boolean } | null>(null)
@@ -225,6 +248,7 @@ export default function PlanPage() {
     }
     setPickerOpen(null)
     setCustomText("")
+    setPickerSearch("")
   }
 
   function removeSide(day: DayOfWeek, mealType: MealType, sideId: number) {
@@ -1348,7 +1372,7 @@ export default function PlanPage() {
       {/* ── Recipe Picker Modal ───────────────────────────────────── */}
       {pickerOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
-          onClick={() => setPickerOpen(null)}>
+          onClick={() => { setPickerOpen(null); setPickerSearch("") }}>
           <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80vh] overflow-auto p-5"
             onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-meal-charcoal mb-4">
@@ -1414,55 +1438,125 @@ export default function PlanPage() {
               <h4 className="text-xs font-semibold text-meal-muted uppercase mb-2">
                 {pickerOpen.addSide ? "Pick a side" : "Or pick a recipe"}
               </h4>
+
+              {/* Search box — filters all sections live */}
+              <input
+                type="text"
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                placeholder="Search recipes..."
+                className="w-full mb-3 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+              />
+
               {(() => {
+                const q = pickerSearch.trim().toLowerCase()
+                const matchSearch = (r: Recipe) => !q || r.title.toLowerCase().includes(q)
+
                 const filtered = pickerOpen.addSide
-                  ? allRecipes.filter((r) => r.category === "side")
-                  : allRecipes
+                  ? allRecipes.filter((r) => r.category === "side" && matchSearch(r))
+                  : allRecipes.filter(matchSearch)
                 const others = pickerOpen.addSide
-                  ? allRecipes.filter((r) => r.category !== "side")
+                  ? allRecipes.filter((r) => r.category !== "side" && matchSearch(r))
                   : []
-                return filtered.length === 0 && others.length === 0 ? (
-                  <p className="text-sm text-meal-muted py-4 text-center">No recipes yet. <Link href="/recipes/new" className="text-meal-sage hover:underline">Add one?</Link></p>
-                ) : (
-                  <div className="space-y-1">
-                    {filtered.length === 0 && pickerOpen.addSide && (
-                      <p className="text-sm text-meal-muted py-2 text-center">No sides yet — categorise a recipe as &quot;Side&quot; or pick from all below.</p>
-                    )}
-                    {filtered.map((r) => (
-                      <button
-                        key={r.id}
-                        onClick={() => {
-                          assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
-                          setRecipes((prev) => ({ ...prev, [r.id]: r }))
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
-                      >
-                        <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
-                        {r.is_gluten_free ? (
-                          <span className="text-[10px] font-semibold text-meal-sage">GF</span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
-                        )}
-                      </button>
-                    ))}
-                    {pickerOpen.addSide && others.length > 0 && (
-                      <>
-                        <h4 className="text-xs font-semibold text-meal-muted uppercase mt-3 mb-1">All recipes</h4>
-                        {others.map((r) => (
-                          <button
-                            key={r.id}
-                            onClick={() => {
-                              assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
-                              setRecipes((prev) => ({ ...prev, [r.id]: r }))
-                            }}
-                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
-                          >
-                            <span className="flex-1 text-sm text-meal-muted">{r.title}</span>
-                            <span className="text-[10px] text-meal-muted">{r.category}</span>
-                          </button>
-                        ))}
-                      </>
-                    )}
+
+                if (filtered.length === 0 && others.length === 0) {
+                  return q ? (
+                    <p className="text-sm text-meal-muted py-4 text-center">No recipes match &ldquo;{pickerSearch}&rdquo;.</p>
+                  ) : (
+                    <p className="text-sm text-meal-muted py-4 text-center">No recipes yet. <Link href="/recipes/new" className="text-meal-sage hover:underline">Add one?</Link></p>
+                  )
+                }
+
+                // Side picker keeps its existing two-section layout (sides first, then all).
+                if (pickerOpen.addSide) {
+                  return (
+                    <div className="space-y-1">
+                      {filtered.length === 0 && (
+                        <p className="text-sm text-meal-muted py-2 text-center">No sides yet — categorise a recipe as &quot;Side&quot; or pick from all below.</p>
+                      )}
+                      {filtered.map((r) => (
+                        <button
+                          key={r.id}
+                          onClick={() => {
+                            assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
+                            setRecipes((prev) => ({ ...prev, [r.id]: r }))
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
+                        >
+                          <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
+                          {r.is_gluten_free ? (
+                            <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                          )}
+                        </button>
+                      ))}
+                      {others.length > 0 && (
+                        <>
+                          <h4 className="text-xs font-semibold text-meal-muted uppercase mt-3 mb-1">All recipes</h4>
+                          {others.map((r) => (
+                            <button
+                              key={r.id}
+                              onClick={() => {
+                                assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
+                                setRecipes((prev) => ({ ...prev, [r.id]: r }))
+                              }}
+                              className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
+                            >
+                              <span className="flex-1 text-sm text-meal-muted">{r.title}</span>
+                              <span className="text-[10px] text-meal-muted">{r.category}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )
+                }
+
+                // Main picker: group recipes by inferred protein, render section per group.
+                const grouped: Record<string, Recipe[]> = {}
+                for (const r of filtered) {
+                  const key = getProteinGroup(r as { title: string; ingredients?: Array<{ name?: string }> })
+                  ;(grouped[key] ??= []).push(r)
+                }
+                const orderedGroups: Array<{ key: string; label: string; emoji: string }> = [
+                  ...PROTEIN_GROUPS.map(g => ({ key: g.key, label: g.label, emoji: g.emoji })),
+                  { key: "other", label: "Other", emoji: "🍽️" },
+                ]
+                return (
+                  <div className="space-y-3">
+                    {orderedGroups.map(g => {
+                      const items = grouped[g.key]
+                      if (!items || items.length === 0) return null
+                      return (
+                        <div key={g.key}>
+                          <h5 className="text-[10px] font-bold uppercase tracking-wider text-meal-muted mb-1 flex items-center gap-1.5">
+                            <span>{g.emoji}</span>
+                            <span>{g.label}</span>
+                            <span className="text-meal-muted/50">({items.length})</span>
+                          </h5>
+                          <div className="space-y-1">
+                            {items.map(r => (
+                              <button
+                                key={r.id}
+                                onClick={() => {
+                                  assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
+                                  setRecipes((prev) => ({ ...prev, [r.id]: r }))
+                                }}
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
+                              >
+                                <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
+                                {r.is_gluten_free ? (
+                                  <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })()}
