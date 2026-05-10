@@ -49,7 +49,17 @@ export async function POST(req: NextRequest) {
             text: `Look at ${files.length > 1 ? "these photos" : "this photo"} of food items, ingredients, spices, or pantry items. Identify EVERY distinct item you can see across ALL images — read labels, jar labels, packet names carefully. Zoom in mentally on small text.
 
 For each item, return:
-- name: the GENERIC item name — NO brand names (e.g. "Soy Sauce" not "Kikkoman Soy Sauce", "Nori Sheets" not "Sushi Nori Sea Vegetable", "Pasta" not "Barilla Penne")
+- name: the GENERIC item name with EVERY BRAND NAME REMOVED. This is a strict requirement.
+  Brand names to strip include (but aren't limited to): Annalisa, Kikkoman, Barilla, Heinz, Coles, Woolworths, Home Brand, Aldi, IGA, Master Foods, Chefs' Cupboard, Continental, Maggi, McKenzie's, Old El Paso, San Remo, Latina, Praise, MasterFoods, Cobram Estate, Helga's, Tip Top, Western Star, Devondale, etc. ANY proper noun before the food noun is a brand — strip it.
+  Also strip marketing words like "Premium", "Classic", "Original", "All-Natural", "Authentic" unless they describe the actual product (e.g. "Wholemeal" stays, "Premium" goes).
+  Examples:
+    "Annalisa Borlotti Beans" → "Borlotti Beans"
+    "Chefs' Cupboard Beef Stroganoff Recipe Base" → "Beef Stroganoff Recipe Base"
+    "Kikkoman Soy Sauce" → "Soy Sauce"
+    "Sushi Nori Sea Vegetable" → "Nori Sheets"
+    "Barilla Penne Rigate" → "Penne"
+    "Heinz Tomato Ketchup" → "Tomato Ketchup"
+    "Master Foods Garam Masala" → "Garam Masala"
 - quantity: estimated quantity if visible (e.g. "50g", "1"), otherwise "1"
 - unit: the unit if applicable (e.g. "g", "jar", "packet"), otherwise ""
 - aisle: one of: fruit-veg, meat-seafood, dairy-eggs, bakery, pantry, frozen, condiments-sauces, drinks, snacks, international, health-foods, other
@@ -58,7 +68,7 @@ For each item, return:
 Return ONLY valid JSON (no markdown fences):
 { "items": [{ "name": "Garam Masala", "quantity": "1", "unit": "jar", "aisle": "international", "is_gluten_free": true }] }
 
-Be thorough — identify every single item, even partially obscured ones.`,
+Be thorough — identify every single item, even partially obscured ones. Each visible item is its own row, even if it duplicates one earlier (two cans of borlotti = two rows, not one).`,
           } as { type: "text"; text: string },
         ],
       }],

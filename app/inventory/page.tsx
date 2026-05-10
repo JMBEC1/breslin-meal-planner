@@ -4,12 +4,9 @@ import { useState, useEffect, useCallback } from "react"
 import { LOCATION_LABELS, AISLE_LABELS } from "@/types"
 import type { InventoryItem, InventoryLocation, AisleCategory, StockStatus } from "@/types"
 
-const STATUS_CYCLE: Record<StockStatus, StockStatus> = {
-  in_stock: "low",
-  low: "out",
-  out: "in_stock",
-}
-
+// Pantry only ever shows "in_stock" or "low" rows. Once an item is out, the
+// row is removed entirely (with an optional jump to the shopping list) — so
+// "out" is a transient state, not something that displays.
 function StatusPill({ status, onClick }: { status: StockStatus; onClick: () => void }) {
   const styles: Record<StockStatus, string> = {
     in_stock: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
@@ -53,14 +50,23 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("")
   const [allItems, setAllItems] = useState<InventoryItem[]>([])
   const [searchLoaded, setSearchLoaded] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [merging, setMerging] = useState(false)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState("")
   const [scannedItems, setScannedItems] = useState<{ name: string; quantity: string; unit: string; aisle: string; is_gluten_free: boolean; selected: boolean }[] | null>(null)
   const [savingScanned, setSavingScanned] = useState(false)
+
+  // Tidy-names state — runs every inventory item through Claude to strip
+  // brand names ("Annalisa Borlotti Beans" → "Borlotti Beans"). One-shot
+  // cleanup the user can run after a big bulk import or when names drift.
+  type TidySuggestion = { id: number; current: string; suggested: string; changed: boolean }
+  const [tidyOpen, setTidyOpen] = useState(false)
+  const [tidyLoading, setTidyLoading] = useState(false)
+  const [tidySuggestions, setTidySuggestions] = useState<TidySuggestion[]>([])
+  const [tidySelected, setTidySelected] = useState<Set<number>>(new Set())
+  const [tidyApplying, setTidyApplying] = useState(false)
+  const [tidyError, setTidyError] = useState("")
 
   // Leftover modal state
   const [showLeftover, setShowLeftover] = useState(false)
@@ -171,13 +177,32 @@ export default function InventoryPage() {
 
   async function cycleStatus(item: InventoryItem) {
     const current: StockStatus = (item.status as StockStatus) || "in_stock"
-    const next = STATUS_CYCLE[current]
-    setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, status: next } : i))
-    await fetch(`/api/inventory/${item.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
-    })
+
+    // First tap: in_stock → low. Non-destructive, just a visual flag that the
+    // pantry's running low on this item.
+    if (current === "in_stock") {
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, status: "low" } : i))
+      await fetch(`/api/inventory/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "low" }),
+      })
+      return
+    }
+
+    // Already low (or somehow already out) — tapping means it's gone. Ask
+    // whether to push it to the shopping list, then delete the row either
+    // way. Pantry only shows what we actually have; "out" doesn't live here.
+    const addToList = confirm(`Out of ${item.name}. Add to the shopping list?`)
+    if (addToList) {
+      await fetch("/api/needs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: item.name }),
+      })
+    }
+    await fetch(`/api/inventory/${item.id}`, { method: "DELETE" })
+    setItems((prev) => prev.filter((i) => i.id !== item.id))
   }
 
   async function moveItem(item: InventoryItem, newLocation: InventoryLocation) {
@@ -189,44 +214,60 @@ export default function InventoryPage() {
     setItems((prev) => prev.filter((i) => i.id !== item.id))
   }
 
-  function toggleSelect(id: number) {
-    setSelectedIds((prev) => {
+  async function openTidy() {
+    setTidyOpen(true)
+    setTidyLoading(true)
+    setTidyError("")
+    setTidySuggestions([])
+    try {
+      const res = await fetch("/api/inventory/tidy/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Tidy failed")
+      const data = await res.json() as { suggestions: TidySuggestion[] }
+      const changed = (data.suggestions ?? []).filter(s => s.changed)
+      setTidySuggestions(changed)
+      // Default: pre-select every changed suggestion. Most renames are
+      // brand-strips and the user just wants to accept them.
+      setTidySelected(new Set(changed.map(s => s.id)))
+    } catch (err) {
+      setTidyError(err instanceof Error ? err.message : "Tidy failed")
+    } finally {
+      setTidyLoading(false)
+    }
+  }
+
+  function toggleTidySelected(id: number) {
+    setTidySelected(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
   }
 
-  async function mergeSelected() {
-    if (selectedIds.size < 2) return
-    setMerging(true)
-    const selected = items.filter((i) => selectedIds.has(i.id))
-    const keeper = selected[0]
-    const others = selected.slice(1)
-
-    // Sum numeric quantities
-    let totalQty = parseFloat(keeper.quantity) || 0
-    for (const item of others) {
-      totalQty += parseFloat(item.quantity) || 0
+  async function applyTidy() {
+    setTidyApplying(true)
+    setTidyError("")
+    try {
+      const toApply = tidySuggestions.filter(s => tidySelected.has(s.id))
+      // Sequential — small batches; the surface area for races on the same
+      // row is minimal and Neon HTTP is forgiving enough.
+      for (const s of toApply) {
+        await fetch(`/api/inventory/${s.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: s.suggested }),
+        })
+      }
+      setTidyOpen(false)
+      fetchItems()
+    } catch (err) {
+      setTidyError(err instanceof Error ? err.message : "Apply failed")
+    } finally {
+      setTidyApplying(false)
     }
-    const newQtyStr = totalQty > 0 ? String(totalQty) : keeper.quantity
-
-    // Update keeper with merged quantity
-    await fetch(`/api/inventory/${keeper.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity: newQtyStr }),
-    })
-
-    // Delete the others
-    for (const item of others) {
-      await fetch(`/api/inventory/${item.id}`, { method: "DELETE" })
-    }
-
-    setSelectedIds(new Set())
-    setMerging(false)
-    fetchItems()
   }
 
   async function removeItem(item: InventoryItem) {
@@ -336,23 +377,11 @@ export default function InventoryPage() {
       } catch { /* continue with next image */ }
     }
 
-    // Group duplicates by name — sum quantities
-    const grouped = new Map<string, typeof allItems[0]>()
-    for (const item of allItems) {
-      const key = item.name.toLowerCase()
-      const existing = grouped.get(key)
-      if (existing) {
-        const q1 = Number(existing.quantity) || 1
-        const q2 = Number(item.quantity) || 1
-        existing.quantity = String(q1 + q2)
-      } else {
-        grouped.set(key, { ...item })
-      }
-    }
-    const mergedItems = Array.from(grouped.values())
-
-    if (mergedItems.length > 0) {
-      setScannedItems(mergedItems.map((item) => ({ ...item, selected: true })))
+    // Duplicates are intentional — without quantity tracking, two tins of
+    // borlotti beans = two separate rows. The user marks each one off
+    // individually as it's used. Skip any client-side merging.
+    if (allItems.length > 0) {
+      setScannedItems(allItems.map((item) => ({ ...item, selected: true })))
     } else {
       setScanError("No items found — try clearer photos or closer up")
     }
@@ -386,23 +415,6 @@ export default function InventoryPage() {
 
   function updateScannedItem(index: number, field: "name" | "quantity" | "unit", value: string) {
     setScannedItems((prev) => prev ? prev.map((item, i) => i === index ? { ...item, [field]: value } : item) : prev)
-  }
-
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [editQty, setEditQty] = useState("")
-  const [editUnit, setEditUnit] = useState("")
-
-  async function saveEdit(id: number) {
-    await fetch(`/api/inventory/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity: editQty, ...(editUnit !== undefined ? {} : {}) }),
-    })
-    // Update local state
-    setItems((prev) => prev.map((item) =>
-      item.id === id ? { ...item, quantity: editQty } : item
-    ))
-    setEditingId(null)
   }
 
   function parseBulkLine(line: string): { name: string; quantity: string; unit: string } {
@@ -442,7 +454,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Search bar */}
-      <div className="relative mb-4">
+      <div className="relative mb-3">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-meal-muted" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
         </svg>
@@ -462,6 +474,16 @@ export default function InventoryPage() {
         )}
       </div>
 
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={openTidy}
+          className="text-xs text-meal-muted hover:text-meal-sage"
+          title="Run every inventory item through AI and strip brand names. Review before applying."
+        >
+          ✨ Tidy names
+        </button>
+      </div>
+
       {/* Search results */}
       {searchQuery ? (
         <div className="mb-6">
@@ -479,9 +501,6 @@ export default function InventoryPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      {(item.quantity !== "1" || item.unit) && (
-                        <span className="text-xs text-meal-muted">{item.quantity}{item.unit ? ` ${item.unit}` : ""}</span>
-                      )}
                       <span className="text-xs text-meal-muted">{AISLE_LABELS[item.aisle as AisleCategory] || ""}</span>
                     </div>
                   </div>
@@ -519,22 +538,6 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      {/* Merge bar */}
-      {selectedIds.size >= 2 && (
-        <div className="mb-4 flex items-center gap-3 p-3 bg-meal-sage/10 rounded-xl border border-meal-sage/20">
-          <p className="flex-1 text-sm text-meal-charcoal">{selectedIds.size} items selected</p>
-          <button onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-meal-muted hover:text-meal-charcoal">Clear</button>
-          <button
-            onClick={mergeSelected}
-            disabled={merging}
-            className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
-          >
-            {merging ? "Merging..." : "Merge Items"}
-          </button>
-        </div>
-      )}
-
       {loading ? (
         <div className="text-center py-12 text-meal-muted">Loading...</div>
       ) : items.length === 0 ? (
@@ -552,11 +555,7 @@ export default function InventoryPage() {
               </h2>
               <div className="bg-white rounded-xl overflow-hidden shadow-sm">
                 {groupItems.map((item) => (
-                  <div key={item.id} className={`flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0 ${selectedIds.has(item.id) ? "bg-meal-sage/5" : ""}`}>
-                    <button onClick={() => toggleSelect(item.id)}
-                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selectedIds.has(item.id) ? "bg-meal-sage border-meal-sage" : "border-meal-warm"}`}>
-                      {selectedIds.has(item.id) && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
-                    </button>
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -584,37 +583,9 @@ export default function InventoryPage() {
               </h2>
               <div className="bg-white rounded-xl overflow-hidden shadow-sm">
                 {aisleItems.map((item) => (
-                  <div key={item.id} className={`flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0 ${selectedIds.has(item.id) ? "bg-meal-sage/5" : ""}`}>
-                    <button onClick={() => toggleSelect(item.id)}
-                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selectedIds.has(item.id) ? "bg-meal-sage border-meal-sage" : "border-meal-warm"}`}>
-                      {selectedIds.has(item.id) && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
-                    </button>
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-b border-meal-cream last:border-0">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-meal-charcoal">{item.name}</p>
-                      {editingId === item.id ? (
-                        <div className="flex items-center gap-2 mt-1">
-                          <input type="text" value={editQty} onChange={(e) => setEditQty(e.target.value)}
-                            className="w-16 px-2 py-1 rounded bg-meal-cream border border-meal-warm text-xs focus:outline-none focus:ring-1 focus:ring-meal-sage"
-                            placeholder="Qty" autoFocus />
-                          <input type="text" value={editUnit} onChange={(e) => setEditUnit(e.target.value)}
-                            className="w-16 px-2 py-1 rounded bg-meal-cream border border-meal-warm text-xs focus:outline-none focus:ring-1 focus:ring-meal-sage"
-                            placeholder="Unit" />
-                          <button onClick={() => saveEdit(item.id)} className="text-[10px] font-medium text-meal-sage">Save</button>
-                          <button onClick={() => setEditingId(null)} className="text-[10px] text-meal-muted">Cancel</button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {item.quantity !== "1" || item.unit ? (
-                            <span
-                              onClick={() => { setEditingId(item.id); setEditQty(item.quantity); setEditUnit(item.unit) }}
-                              className="text-[10px] text-meal-muted/70 hover:text-meal-sage cursor-pointer"
-                              title="Tap to edit quantity"
-                            >
-                              {item.quantity}{item.unit ? ` ${item.unit}` : ""}
-                            </span>
-                          ) : null}
-                        </div>
-                      )}
                     </div>
                     <StatusPill status={(item.status as StockStatus) || "in_stock"} onClick={() => cycleStatus(item)} />
                     <select value={item.location} onChange={(e) => moveItem(item, e.target.value as InventoryLocation)}
@@ -955,6 +926,66 @@ export default function InventoryPage() {
                 className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
               >
                 {lfSaving ? "Saving..." : `Add ${lfPortions} portion${Number(lfPortions) === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tidy names modal */}
+      {tidyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !tidyApplying && !tidyLoading && setTidyOpen(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-meal-cream">
+              <h2 className="text-lg font-semibold text-meal-charcoal">Tidy item names</h2>
+              <p className="text-xs text-meal-muted mt-1">
+                AI strips brand names so your pantry list reads as generic items.
+                Review the proposed renames and accept the ones you like.
+              </p>
+            </div>
+            <div className="flex-1 overflow-auto">
+              {tidyLoading ? (
+                <div className="p-8 text-center text-sm text-meal-muted">Asking AI to clean every name… this can take 10–30 seconds.</div>
+              ) : tidyError ? (
+                <div className="p-5 text-sm text-red-600">{tidyError}</div>
+              ) : tidySuggestions.length === 0 ? (
+                <div className="p-8 text-center text-sm text-meal-muted">Everything looks clean already — no rename suggestions.</div>
+              ) : (
+                <ul className="divide-y divide-meal-cream">
+                  {tidySuggestions.map(s => {
+                    const checked = tidySelected.has(s.id)
+                    return (
+                      <li key={s.id} className="px-5 py-3 flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleTidySelected(s.id)}
+                          className="mt-1 rounded border-meal-warm text-meal-sage focus:ring-meal-sage"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-meal-muted line-through">{s.current}</p>
+                          <p className="text-sm font-medium text-meal-charcoal">{s.suggested}</p>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+            <div className="p-5 pt-3 flex gap-2 border-t border-meal-cream">
+              <button
+                onClick={() => setTidyOpen(false)}
+                disabled={tidyApplying}
+                className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={applyTidy}
+                disabled={tidyApplying || tidyLoading || tidySelected.size === 0}
+                className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+              >
+                {tidyApplying ? "Applying…" : `Apply ${tidySelected.size} rename${tidySelected.size === 1 ? "" : "s"}`}
               </button>
             </div>
           </div>

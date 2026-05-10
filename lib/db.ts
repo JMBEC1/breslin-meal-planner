@@ -675,9 +675,10 @@ export async function insertInventoryItem(data: {
   return parseInventoryItem(db.prepare("SELECT * FROM inventory WHERE id = ?").get(result.lastInsertRowid) as InventoryRow)
 }
 
-export async function updateInventoryItem(id: number, data: { servings?: number; quantity?: string; notes?: string; location?: string; status?: "in_stock" | "low" | "out" }) {
+export async function updateInventoryItem(id: number, data: { name?: string; servings?: number; quantity?: string; notes?: string; location?: string; status?: "in_stock" | "low" | "out" }) {
   if (USE_NEON) {
     const sql = await getNeon()
+    if (data.name !== undefined) await sql`UPDATE inventory SET name = ${data.name} WHERE id = ${id}`
     if (data.servings !== undefined) await sql`UPDATE inventory SET servings = ${data.servings} WHERE id = ${id}`
     if (data.quantity !== undefined) await sql`UPDATE inventory SET quantity = ${data.quantity} WHERE id = ${id}`
     if (data.notes !== undefined) await sql`UPDATE inventory SET notes = ${data.notes} WHERE id = ${id}`
@@ -687,6 +688,7 @@ export async function updateInventoryItem(id: number, data: { servings?: number;
     return rows.length ? parseInventoryItem(rows[0] as InventoryRow) : null
   }
   const db = getSqlite()
+  if (data.name !== undefined) db.prepare("UPDATE inventory SET name = ? WHERE id = ?").run(data.name, id)
   if (data.servings !== undefined) db.prepare("UPDATE inventory SET servings = ? WHERE id = ?").run(data.servings, id)
   if (data.quantity !== undefined) db.prepare("UPDATE inventory SET quantity = ? WHERE id = ?").run(data.quantity, id)
   if (data.notes !== undefined) db.prepare("UPDATE inventory SET notes = ? WHERE id = ?").run(data.notes, id)
