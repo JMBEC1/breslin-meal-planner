@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { DAYS, DAY_LABELS } from "@/types"
 import type { MealSlot, DayOfWeek, MealType, Recipe } from "@/types"
 import { ImagePickerModal } from "@/components/ImagePickerModal"
+import { getTakeawayImage } from "@/lib/takeaway-images"
 
 // Use LOCAL date components, not UTC, when serialising YYYY-MM-DD. toISOString()
 // converts to UTC which shifts the date for non-UTC timezones at certain hours
@@ -476,6 +477,8 @@ export default function PlanPage() {
         }) {
           const title = recipe?.title || customText || "Nothing planned"
           const hasContent = recipe || customText
+          const takeawayImg = getTakeawayImage(customText)
+          const heroImg = recipe?.image_url || takeawayImg
           return (
             <div
               className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-white cursor-pointer hover:shadow-md transition-shadow" : "bg-meal-warm/50"}`}
@@ -486,8 +489,9 @@ export default function PlanPage() {
             >
               {/* Image area */}
               <div className={`relative h-28 ${colour}`}>
-                {recipe?.image_url ? (
-                  <img src={recipe.image_url} alt={title} className="w-full h-full object-cover" />
+                {heroImg ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={heroImg} alt={title} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <svg className="w-10 h-10 text-white/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
@@ -587,6 +591,7 @@ export default function PlanPage() {
                 {(["dinner"] as MealType[]).map((mealType) => {
                   const slot = getSlot(day, mealType)
                   const recipe = slot?.recipe_id ? recipes[slot.recipe_id] : null
+                  const tileImg = recipe?.image_url || getTakeawayImage(slot?.custom_text)
                   return (
                     <div
                       key={mealType}
@@ -600,12 +605,13 @@ export default function PlanPage() {
                         else if (!slot?.custom_text) openPicker(day, mealType)
                       }}
                     >
-                      {recipe?.image_url && (
+                      {tileImg && (
                         <div className="h-16 w-full">
-                          <img src={recipe.image_url} alt="" className="w-full h-full object-cover" />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={tileImg} alt="" className="w-full h-full object-cover" />
                         </div>
                       )}
-                      <div className={recipe?.image_url ? "p-2" : (slot?.recipe_id || slot?.custom_text) ? "p-3" : ""}>
+                      <div className={tileImg ? "p-2" : (slot?.recipe_id || slot?.custom_text) ? "p-3" : ""}>
                         <span className="text-[10px] font-semibold text-meal-muted uppercase">
                           {mealType}
                         </span>
@@ -677,6 +683,7 @@ export default function PlanPage() {
                   {(["dinner"] as MealType[]).map((mealType) => {
                     const slot = getSlot(day, mealType)
                     const recipe = slot?.recipe_id ? recipes[slot.recipe_id] : null
+                    const rowImg = recipe?.image_url || getTakeawayImage(slot?.custom_text)
                     return (
                       <div
                         key={mealType}
@@ -686,15 +693,16 @@ export default function PlanPage() {
                           else if (!slot?.custom_text) openPicker(day, mealType)
                         }}
                       >
-                        {recipe?.image_url ? (
-                          <img src={recipe.image_url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                        {rowImg ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={rowImg} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                         ) : (
                           <span className="text-[10px] font-semibold uppercase w-12 text-center shrink-0 text-meal-coral">
                             {mealType}
                           </span>
                         )}
                         <div className="flex-1 min-w-0">
-                          {recipe?.image_url && (
+                          {rowImg && (
                             <span className="text-[10px] font-semibold uppercase text-meal-coral">
                               {mealType}
                             </span>
