@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DAYS, DAY_LABELS } from "@/types"
 import type { MealSlot, DayOfWeek, MealType, Recipe } from "@/types"
-import { suggestRecipeImages } from "@/lib/images"
+import { ImagePickerModal } from "@/components/ImagePickerModal"
 
 // Use LOCAL date components, not UTC, when serialising YYYY-MM-DD. toISOString()
 // converts to UTC which shifts the date for non-UTC timezones at certain hours
@@ -112,6 +112,9 @@ const OVERRIDE_CUSTOM_TEXT: Record<Exclude<DayOverride, "auto" | "skip">, string
   takeaway: "Takeaway",
 }
 
+const TAKEAWAY_TYPES = ["Sushi", "Pizza", "Thai", "Indian", "Burgers", "Other"] as const
+type TakeawayType = (typeof TAKEAWAY_TYPES)[number]
+
 const OVERRIDE_CHIP_CLASS: Record<DayOverride, string> = {
   auto: "bg-meal-warm text-meal-charcoal hover:bg-meal-warm/80",
   cheat: "bg-meal-plum/15 text-meal-plum hover:bg-meal-plum/25",
@@ -143,29 +146,13 @@ export default function PlanPage() {
   const [dayOverrides, setDayOverrides] = useState<Record<DayOfWeek, DayOverride>>(() =>
     Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>,
   )
+  // Takeaway type per day — only consulted when dayOverrides[day] === "takeaway".
+  const [takeawayTypes, setTakeawayTypes] = useState<Partial<Record<DayOfWeek, TakeawayType>>>({})
   const autoDays = DAYS.filter((d) => dayOverrides[d] === "auto")
+  const takeawayDays = DAYS.filter((d) => dayOverrides[d] === "takeaway")
 
   // Image picker modal state — change a recipe's image_url from a meal card.
   const [imagePickerRecipe, setImagePickerRecipe] = useState<Recipe | null>(null)
-  const [imageUrlInput, setImageUrlInput] = useState("")
-  const [imageSaving, setImageSaving] = useState(false)
-
-  async function applyRecipeImage(url: string) {
-    if (!imagePickerRecipe || !url.trim()) return
-    setImageSaving(true)
-    const res = await fetch(`/api/recipes/${imagePickerRecipe.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_url: url.trim() }),
-    })
-    if (res.ok) {
-      const updated = await res.json()
-      setRecipes((prev) => ({ ...prev, [updated.id]: updated }))
-    }
-    setImageSaving(false)
-    setImagePickerRecipe(null)
-    setImageUrlInput("")
-  }
 
   const fetchPlan = useCallback(async () => {
     setLoading(true)
@@ -355,11 +342,14 @@ export default function PlanPage() {
       const mode = dayOverrides[day]
       if (mode === "skip") { leftoverFor = null; continue }
       if (mode === "cheat" || mode === "takeaway") {
+        const customText = mode === "takeaway" && takeawayTypes[day]
+          ? `Takeaway: ${takeawayTypes[day]}`
+          : OVERRIDE_CUSTOM_TEXT[mode]
         updated.push({
           day,
           meal_type: "dinner" as MealType,
           recipe_id: null,
-          custom_text: OVERRIDE_CUSTOM_TEXT[mode],
+          custom_text: customText,
         })
         leftoverFor = null
         continue
@@ -397,6 +387,7 @@ export default function PlanPage() {
     setDinnersSaved(false)
     setInspiration("")
     setDayOverrides(Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>)
+    setTakeawayTypes({})
   }
 
   async function openPicker(day: DayOfWeek, mealType: MealType, addSide?: boolean) {
@@ -451,6 +442,18 @@ export default function PlanPage() {
           >
             Shopping List
           </Link>
+          {meals.some((m) => m.meal_type === "dinner") && (
+            <button
+              onClick={() => {
+                if (!confirm("Clear all dinners for this week?")) return
+                savePlan(meals.filter((m) => m.meal_type !== "dinner"))
+              }}
+              className="px-3 py-2 rounded-lg text-meal-muted hover:text-red-500 text-sm font-medium transition-colors"
+              title="Clear all dinners for this week"
+            >
+              Clear week
+            </button>
+          )}
         </div>
       </div>
 
@@ -503,7 +506,7 @@ export default function PlanPage() {
                     {recipe && (
                       <button
                         className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
-                        onClick={(e) => { e.stopPropagation(); setImagePickerRecipe(recipe); setImageUrlInput("") }}
+                        onClick={(e) => { e.stopPropagation(); setImagePickerRecipe(recipe) }}
                         title="Change image"
                       >
                         <svg className="w-3.5 h-3.5 text-meal-charcoal" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -755,7 +758,10 @@ export default function PlanPage() {
                 </label>
                 {DAYS.some((d) => dayOverrides[d] !== "auto") && (
                   <button
-                    onClick={() => setDayOverrides(Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>)}
+                    onClick={() => {
+                      setDayOverrides(Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>)
+                      setTakeawayTypes({})
+                    }}
                     className="text-[10px] text-meal-muted hover:text-meal-charcoal font-medium uppercase tracking-wider"
                   >
                     Reset
@@ -790,6 +796,40 @@ export default function PlanPage() {
                     ? "Nothing for AI to fill — hit Apply Plan to lock in your overrides."
                     : `AI will fill ${autoDays.length} of 7 nights.`}
               </p>
+
+              {/* Takeaway type pickers — one row per day in Takeaway mode */}
+              {takeawayDays.length > 0 && (
+                <div className="mt-3 space-y-1.5 p-2.5 rounded-lg bg-meal-coral/5 border border-meal-coral/15">
+                  {takeawayDays.map((day) => (
+                    <div key={day} className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold text-meal-coral uppercase tracking-wider w-9 shrink-0">
+                        {DAY_LABELS[day]}
+                      </span>
+                      <div className="flex gap-1 flex-wrap">
+                        {TAKEAWAY_TYPES.map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => {
+                              setTakeawayTypes((prev) => ({
+                                ...prev,
+                                [day]: prev[day] === t ? undefined : t,
+                              }))
+                              if (dinnerResults) { setDinnerResults(null); setDinnersSaved(false) }
+                            }}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                              takeawayTypes[day] === t
+                                ? "bg-meal-coral text-white"
+                                : "bg-white text-meal-charcoal hover:bg-meal-coral/15"
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Mode selector */}
@@ -1122,82 +1162,12 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* ── Change Image Modal ─────────────────────────────────────── */}
       {imagePickerRecipe && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4"
-          onClick={() => { if (!imageSaving) { setImagePickerRecipe(null); setImageUrlInput("") } }}
-        >
-          <div
-            className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5 pb-3 border-b border-meal-cream">
-              <h3 className="text-lg font-semibold text-meal-charcoal">Change image</h3>
-              <p className="text-xs text-meal-muted mt-0.5 truncate">{imagePickerRecipe.title}</p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {/* Current image preview */}
-              {imagePickerRecipe.image_url && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-meal-muted mb-1.5">Current</p>
-                  <div className="relative aspect-video rounded-lg overflow-hidden bg-meal-cream">
-                    <img src={imagePickerRecipe.image_url} alt="" className="w-full h-full object-cover" />
-                  </div>
-                </div>
-              )}
-
-              {/* Curated suggestions */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-meal-muted mb-1.5">Suggestions</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {suggestRecipeImages(imagePickerRecipe.title, imagePickerRecipe.image_url ?? undefined, 8).map((url) => (
-                    <button
-                      key={url}
-                      onClick={() => applyRecipeImage(url)}
-                      disabled={imageSaving}
-                      className="relative aspect-video rounded-lg overflow-hidden hover:ring-2 hover:ring-meal-sage transition-all disabled:opacity-50"
-                    >
-                      <img src={url} alt="" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Paste URL */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-meal-muted mb-1.5">Paste an image URL</p>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={imageUrlInput}
-                    onChange={(e) => setImageUrlInput(e.target.value)}
-                    placeholder="https://..."
-                    className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
-                  />
-                  <button
-                    onClick={() => applyRecipeImage(imageUrlInput)}
-                    disabled={imageSaving || !imageUrlInput.trim()}
-                    className="px-3 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover disabled:opacity-50"
-                  >
-                    {imageSaving ? "..." : "Use"}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-5 pt-3 border-t border-meal-cream">
-              <button
-                onClick={() => { if (!imageSaving) { setImagePickerRecipe(null); setImageUrlInput("") } }}
-                disabled={imageSaving}
-                className="w-full py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium hover:bg-meal-warm/80 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ImagePickerModal
+          recipe={imagePickerRecipe}
+          onSaved={(updated) => setRecipes((prev) => ({ ...prev, [updated.id]: updated }))}
+          onClose={() => setImagePickerRecipe(null)}
+        />
       )}
     </div>
   )

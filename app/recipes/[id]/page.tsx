@@ -6,6 +6,7 @@ import Link from "next/link"
 import { GFBadge } from "@/components/GFBadge"
 import { MealContext } from "@/components/MealContext"
 import { RecipeRating } from "@/components/RecipeRating"
+import { ImagePickerModal } from "@/components/ImagePickerModal"
 import { AISLE_LABELS } from "@/types"
 import type { Recipe, AisleCategory } from "@/types"
 
@@ -17,6 +18,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
   const [savingTitle, setSavingTitle] = useState(false)
+  const [imagePickerOpen, setImagePickerOpen] = useState(false)
 
   async function saveTitle() {
     const next = titleDraft.trim()
@@ -63,14 +65,37 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         Back to recipes
       </Link>
 
-      {/* Hero image */}
-      {recipe.image_url && (
-        <div className="relative rounded-xl overflow-hidden mb-6 aspect-video">
+      {/* Hero image — always show the swap button so wrong photos are easy to fix */}
+      {recipe.image_url ? (
+        <div className="relative rounded-xl overflow-hidden mb-6 aspect-video group">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={recipe.image_url} alt={recipe.title} className="w-full h-full object-cover" />
           <div className="absolute top-3 right-3">
             <GFBadge isGlutenFree={recipe.is_gluten_free} size="md" />
           </div>
+          <button
+            onClick={() => setImagePickerOpen(true)}
+            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 hover:bg-white text-meal-charcoal text-xs font-medium shadow-md transition-colors"
+            title="Change image"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+            </svg>
+            Change
+          </button>
         </div>
+      ) : (
+        <button
+          onClick={() => setImagePickerOpen(true)}
+          className="mb-6 w-full aspect-video rounded-xl bg-meal-cream hover:bg-meal-warm border-2 border-dashed border-meal-warm text-meal-muted hover:text-meal-charcoal flex flex-col items-center justify-center gap-1.5 transition-colors"
+        >
+          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span className="text-sm font-medium">Add an image</span>
+        </button>
       )}
 
       {/* Title + meta */}
@@ -236,6 +261,14 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
           Delete
         </button>
       </div>
+
+      {imagePickerOpen && (
+        <ImagePickerModal
+          recipe={recipe}
+          onSaved={(updated) => setRecipe(updated)}
+          onClose={() => setImagePickerOpen(false)}
+        />
+      )}
     </div>
   )
 }
