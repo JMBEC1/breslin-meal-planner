@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 {
   "title": "Recipe name",
   "description": "Short 1-2 sentence description",
-  "category": "dinner" or "school-lunch" or "fancy",
+  "category": "dinner" or "fancy",
   "is_gluten_free": true/false,
   "prep_time_mins": number or null,
   "cook_time_mins": number or null,

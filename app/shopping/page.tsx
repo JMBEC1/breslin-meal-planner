@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
-import { AISLE_LABELS, LOCATION_LABELS } from "@/types"
-import type { ShoppingItem, AisleCategory, Staple, NeedItem, InventoryLocation } from "@/types"
+import { AISLE_LABELS } from "@/types"
+import type { ShoppingItem, AisleCategory, Staple, NeedItem } from "@/types"
 
 const AISLE_OPTIONS: AisleCategory[] = [
   "dairy-eggs", "bakery", "fruit-veg", "meat-seafood", "pantry", "frozen",
@@ -43,11 +43,6 @@ export default function ShoppingPage() {
   const [needItems, setNeedItems] = useState<NeedItem[]>([])
   const [newNeedItem, setNewNeedItem] = useState("")
   const [showNeeds, setShowNeeds] = useState(true)
-
-  // Add to inventory state
-  const [showStockUp, setShowStockUp] = useState(false)
-  const [stockUpItems, setStockUpItems] = useState<{ name: string; quantity: string; unit: string; aisle: string; location: InventoryLocation; selected: boolean }[]>([])
-  const [savingStock, setSavingStock] = useState(false)
 
   // Load needs from database
   useEffect(() => {
@@ -214,14 +209,7 @@ export default function ShoppingPage() {
     })
   }
 
-  // Group by aisle — separate inventory items
-  const regularItems: (ShoppingItem & { _index: number })[] = []
-  const inventoryItems: (ShoppingItem & { _index: number })[] = []
-  items.forEach((item, i) => {
-    const entry = { ...item, _index: i }
-    if (item.in_inventory) inventoryItems.push(entry)
-    else regularItems.push(entry)
-  })
+  const regularItems: (ShoppingItem & { _index: number })[] = items.map((item, i) => ({ ...item, _index: i }))
 
   const grouped = regularItems.reduce<Record<string, (ShoppingItem & { _index: number })[]>>((acc, item) => {
     const aisle = item.aisle || "other"
@@ -230,46 +218,7 @@ export default function ShoppingPage() {
     return acc
   }, {})
 
-  const checkedItems = regularItems.filter((i) => i.checked)
   const uncheckedCount = regularItems.filter((i) => !i.checked).length
-
-  function guessLocation(aisle: string): InventoryLocation {
-    if (aisle === "frozen") return "freezer"
-    if (["meat-seafood", "dairy-eggs", "fruit-veg"].includes(aisle)) return "fridge"
-    return "pantry"
-  }
-
-  function openStockUp() {
-    setStockUpItems(checkedItems.map((item) => ({
-      name: item.name,
-      quantity: item.quantity || "1",
-      unit: item.unit || "",
-      aisle: item.aisle || "other",
-      location: guessLocation(item.aisle || "other"),
-      selected: true,
-    })))
-    setShowStockUp(true)
-  }
-
-  async function saveStockUp() {
-    setSavingStock(true)
-    const selected = stockUpItems.filter((i) => i.selected)
-    for (const item of selected) {
-      await fetch("/api/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: item.name,
-          location: item.location,
-          item_type: "ingredient",
-          quantity: item.quantity,
-          unit: item.unit,
-        }),
-      })
-    }
-    setSavingStock(false)
-    setShowStockUp(false)
-  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 md:px-6 py-6">
@@ -526,127 +475,13 @@ export default function ShoppingPage() {
                         {item.unit && <span className="font-medium"> {item.unit}</span>}
                         {" "}{item.name}
                       </span>
-                      {item.running_low && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">⚠ Low</span>}
                       {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
                     </button>
-                    {item.running_low && item.inventory_note && !item.checked && (
-                      <div className="px-4 pb-2 -mt-1 ml-8">
-                        <p className="text-xs text-amber-700 font-medium">{item.inventory_note} — top up</p>
-                      </div>
-                    )}
-                    {item.alternative_note && !item.checked && (
-                      <div className="px-4 pb-2 -mt-1 ml-8">
-                        <p className="text-xs text-meal-coral font-medium">💡 {item.alternative_note}</p>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             </div>
           ))}
-
-          {/* Already Have section */}
-          {inventoryItems.length > 0 && (
-            <div>
-              <h2 className="text-xs font-semibold text-meal-sage uppercase tracking-wider mb-2">
-                Already Have
-              </h2>
-              <div className="bg-meal-sage/5 rounded-xl overflow-hidden border border-meal-sage/20">
-                {inventoryItems.map((item) => (
-                  <div
-                    key={item._index}
-                    className="flex items-center gap-3 px-4 py-3 border-b border-meal-sage/10 last:border-0 opacity-60"
-                  >
-                    <svg className="w-4 h-4 text-meal-sage shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    <span className="flex-1 text-sm text-meal-charcoal">
-                      {item.quantity && <span className="font-medium">{item.quantity}</span>}
-                      {item.unit && <span className="font-medium"> {item.unit}</span>}
-                      {" "}{item.name}
-                    </span>
-                    <span className="text-[10px] text-meal-sage font-medium">
-                      {item.inventory_note || "In stock"}
-                    </span>
-                    <button
-                      onClick={() => toggleItem(item._index)}
-                      className="text-[10px] text-meal-muted hover:text-meal-charcoal"
-                    >
-                      + need more
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Done shopping — add to inventory */}
-      {checkedItems.length > 0 && !loading && (
-        <div className="mt-6">
-          <button
-            onClick={openStockUp}
-            className="w-full py-3 rounded-xl bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/90 transition-colors shadow-sm flex items-center justify-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-            </svg>
-            Done Shopping? Stock Up Pantry ({checkedItems.length} items)
-          </button>
-        </div>
-      )}
-
-      {/* Stock up modal */}
-      {showStockUp && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center" onClick={() => setShowStockUp(false)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 pb-3">
-              <h3 className="text-lg font-semibold text-meal-charcoal">Stock Up Pantry</h3>
-              <p className="text-sm text-meal-muted mt-1">Choose where each item goes. Uncheck any you don&apos;t want to track.</p>
-            </div>
-            <div className="flex-1 overflow-y-auto px-5 pb-3">
-              <div className="space-y-2">
-                {stockUpItems.map((item, i) => (
-                  <div key={i} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg transition-colors ${item.selected ? "bg-meal-cream" : "bg-meal-warm/30 opacity-50"}`}>
-                    <button
-                      onClick={() => setStockUpItems((prev) => prev.map((p, j) => j === i ? { ...p, selected: !p.selected } : p))}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${item.selected ? "bg-meal-sage border-meal-sage" : "border-meal-warm"}`}
-                    >
-                      {item.selected && (
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      )}
-                    </button>
-                    <span className="flex-1 text-sm text-meal-charcoal min-w-0 truncate">{item.quantity !== "1" || item.unit ? `${item.quantity}${item.unit ? " " + item.unit : ""} ` : ""}{item.name}</span>
-                    <select
-                      value={item.location}
-                      onChange={(e) => setStockUpItems((prev) => prev.map((p, j) => j === i ? { ...p, location: e.target.value as InventoryLocation } : p))}
-                      className="text-xs px-2 py-1 rounded-lg bg-white border border-meal-warm text-meal-charcoal focus:outline-none focus:ring-1 focus:ring-meal-sage"
-                    >
-                      <option value="fridge">🥬 Fridge</option>
-                      <option value="freezer">❄️ Freezer</option>
-                      <option value="pantry">🏠 Pantry</option><option value="household">🧹 Household</option>
-                    </select>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="p-5 pt-3 flex gap-2 border-t border-meal-cream">
-              <button onClick={() => setShowStockUp(false)}
-                className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium">
-                Cancel
-              </button>
-              <button
-                onClick={saveStockUp}
-                disabled={savingStock || !stockUpItems.some((i) => i.selected)}
-                className="flex-1 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
-              >
-                {savingStock ? "Adding..." : `Add ${stockUpItems.filter((i) => i.selected).length} to Inventory`}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

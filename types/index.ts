@@ -33,17 +33,15 @@ export const AISLE_LABELS: Record<AisleCategory, string> = {
 
 // ── Recipe ──────────────────────────────────────────────────────────────────
 
-export type RecipeCategory = "school-lunch" | "dinner" | "fancy" | "side"
+export type RecipeCategory = "dinner" | "fancy" | "side"
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
-  "school-lunch": "School Lunch",
   "dinner": "Dinner",
   "fancy": "Special Occasion",
   "side": "Side",
 }
 
 export const CATEGORY_COLOURS: Record<RecipeCategory, string> = {
-  "school-lunch": "bg-meal-sky",
   "dinner": "bg-meal-coral",
   "fancy": "bg-meal-plum",
   "side": "bg-meal-sage",
@@ -81,7 +79,7 @@ export interface Recipe {
 // ── Meal Plan ───────────────────────────────────────────────────────────────
 
 export type DayOfWeek = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday"
-export type MealType = "lunch" | "dinner"
+export type MealType = "dinner"
 
 export const DAYS: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 export const DAY_LABELS: Record<DayOfWeek, string> = {
@@ -120,10 +118,6 @@ export interface ShoppingItem {
   checked: boolean
   from_recipe_ids: number[]
   is_staple: boolean
-  in_inventory?: boolean
-  inventory_note?: string
-  alternative_note?: string
-  running_low?: boolean
 }
 
 export interface ShoppingList {
@@ -152,42 +146,6 @@ export interface RecipeRatingSummary {
   avg_enjoyment: Record<FamilyMember, number | null>
   avg_ease: number | null
   ratings: Rating[]
-}
-
-// ── Inventory ───────────────────────────────────────────────────────────────
-
-export type InventoryLocation = "freezer" | "fridge" | "pantry" | "household"
-export type InventoryItemType = "ingredient" | "frozen_meal" | "ready_meal" | "batch_cook"
-export type StockStatus = "in_stock" | "low" | "out"
-
-export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
-  in_stock: "In stock",
-  low: "Running low",
-  out: "Out",
-}
-
-export const LOCATION_LABELS: Record<InventoryLocation, string> = {
-  freezer: "Freezer",
-  fridge: "Fridge",
-  pantry: "Pantry",
-  household: "Household",
-}
-
-export interface InventoryItem {
-  id: number
-  name: string
-  location: InventoryLocation
-  item_type: InventoryItemType
-  quantity: string
-  unit: string
-  aisle: AisleCategory
-  recipe_id: number | null
-  servings: number | null
-  is_gluten_free: boolean
-  notes: string | null
-  added_at: string
-  expires_at: string | null
-  status: StockStatus
 }
 
 export interface NeedItem {

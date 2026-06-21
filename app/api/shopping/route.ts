@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getMealPlan, getRecipe, getShoppingList, upsertShoppingList, getStaples, getInventory } from "@/lib/db"
+import { getMealPlan, getRecipe, getShoppingList, upsertShoppingList, getStaples } from "@/lib/db"
 import { aggregateIngredients } from "@/lib/shopping"
 import type { Ingredient, MealSlot } from "@/types"
 
@@ -23,7 +23,7 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
     }
   }
 
-  let items = aggregateIngredients(allIngredients)
+  const items = aggregateIngredients(allIngredients)
 
   // Add active staples
   const staples = await getStaples()
@@ -39,50 +39,6 @@ async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: s
         from_recipe_ids: [],
         is_staple: true,
       })
-    }
-  }
-
-  // Smart subtraction — flag items already in inventory
-  // Strict matching: exact name, or one fully contains the other
-  function fuzzyMatch(a: string, b: string): boolean {
-    const la = a.toLowerCase().trim(), lb = b.toLowerCase().trim()
-    return la === lb || la.includes(lb) || lb.includes(la)
-  }
-  // Alternative suggestions: share a key word (e.g. "chicken breast" vs "chicken thigh")
-  const STOP_WORDS = new Set(["a", "an", "of", "the", "in", "to", "for", "and", "or", "with", "fresh", "dried", "raw", "cooked", "whole", "medium", "large", "small", "cup", "cups", "can", "tbsp", "tsp"])
-  function sigWords(name: string): string[] {
-    return name.toLowerCase().split(/\s+/).filter((w) => w.length > 3 && !STOP_WORDS.has(w))
-  }
-  function partialMatch(a: string, b: string): boolean {
-    const wa = sigWords(a), wb = sigWords(b)
-    if (wa.length === 0 || wb.length === 0) return false
-    // Must share a word exactly (no substring matching like "on" in "onion")
-    return wa.some((w) => wb.includes(w))
-  }
-  const inventory = await getInventory()
-  for (const item of items) {
-    const match = inventory.find((inv) => fuzzyMatch(item.name, inv.name))
-    if (match) {
-      const loc = match.location.charAt(0).toUpperCase() + match.location.slice(1)
-      const status = match.status || "in_stock"
-      if (status === "in_stock") {
-        // We have it — don't add to main list, surface in "Already Have" section.
-        item.in_inventory = true
-        item.inventory_note = `In stock — ${loc}`
-      } else if (status === "low") {
-        // Still have some, but flag for top-up. Item stays in main shopping list.
-        item.running_low = true
-        item.inventory_note = `Running low — ${loc}`
-      }
-      // status === "out" → fall through, treat as a normal need (no inventory linkage).
-    } else {
-      // Look for alternatives — same food family but different cut/variety
-      const alt = inventory.find((inv) => partialMatch(item.name, inv.name))
-      if (alt && alt.status !== "out") {
-        const loc = alt.location.charAt(0).toUpperCase() + alt.location.slice(1)
-        const lowSuffix = alt.status === "low" ? " — running low" : ""
-        item.alternative_note = `You have ${alt.name} (${loc}${lowSuffix})`
-      }
     }
   }
 

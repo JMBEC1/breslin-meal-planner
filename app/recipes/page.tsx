@@ -13,14 +13,11 @@ export default function RecipesPage() {
   const [category, setCategory] = useState<string | null>(null)
   const [gfOnly, setGfOnly] = useState(false)
 
-  // Cheat meals — old ingredient pools removed, now just the modal
-
-  // Cheat meal modal
+  // Cheat meal modal — quick dinners with no recipe
   const [cheatModalOpen, setCheatModalOpen] = useState(false)
   const [cheatName, setCheatName] = useState("")
   const [cheatServings, setCheatServings] = useState("4")
   const [cheatGF, setCheatGF] = useState(true)
-  const [cheatCategory, setCheatCategory] = useState<"dinner" | "school-lunch">("dinner")
   const [cheatIngredients, setCheatIngredients] = useState("")
   const [savingCheat, setSavingCheat] = useState(false)
 
@@ -28,13 +25,12 @@ export default function RecipesPage() {
     if (!cheatName.trim()) return
     setSavingCheat(true)
 
-    // Parse ingredients from comma/newline separated text
     const ingNames = cheatIngredients.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
     const ingredients = ingNames.map((name) => ({
       name,
       quantity: "1",
       unit: "",
-      aisle: "other", // server will auto-categorise
+      aisle: "other",
       is_gluten_free: true,
     }))
 
@@ -43,7 +39,7 @@ export default function RecipesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: cheatName.trim(),
-        category: cheatCategory,
+        category: "dinner",
         is_gluten_free: cheatGF,
         servings: parseInt(cheatServings) || 4,
         description: "Quick meal — no recipe needed",
@@ -61,8 +57,6 @@ export default function RecipesPage() {
     }
     setSavingCheat(false)
   }
-
-  // Lunch box — hidden, re-enable later
 
   const fetchRecipes = useCallback(async () => {
     setLoading(true)
@@ -140,8 +134,6 @@ export default function RecipesPage() {
         />
       </div>
 
-      {/* Lunch Box Items — hidden, re-enable later */}
-
       {/* Grid */}
       {loading ? (
         <div className="text-center py-12 text-meal-muted">Loading recipes...</div>
@@ -190,28 +182,15 @@ export default function RecipesPage() {
                   autoFocus
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Servings</label>
-                  <input
-                    type="number"
-                    value={cheatServings}
-                    onChange={(e) => setCheatServings(e.target.value)}
-                    min="1"
-                    className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm text-center focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Type</label>
-                  <button
-                    onClick={() => setCheatCategory(cheatCategory === "dinner" ? "school-lunch" : "dinner")}
-                    className={`w-full px-3 py-2 rounded-lg text-sm font-medium ${
-                      cheatCategory === "dinner" ? "bg-meal-coral/10 text-meal-coral" : "bg-meal-sky/10 text-meal-sky"
-                    }`}
-                  >
-                    {cheatCategory === "dinner" ? "Dinner" : "Lunch"}
-                  </button>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Servings</label>
+                <input
+                  type="number"
+                  value={cheatServings}
+                  onChange={(e) => setCheatServings(e.target.value)}
+                  min="1"
+                  className="w-full px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm text-sm text-center focus:outline-none focus:ring-2 focus:ring-meal-sage/30"
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-meal-muted uppercase mb-1">Ingredients</label>

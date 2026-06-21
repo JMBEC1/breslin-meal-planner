@@ -28,7 +28,7 @@ const SEED_RECIPES = [
   },
   {
     title: "GF Lunchbox Sushi Bowls",
-    category: "school-lunch",
+    category: "dinner",
     is_gluten_free: true,
     prep_time_mins: 20,
     cook_time_mins: 15,
@@ -70,7 +70,7 @@ const SEED_RECIPES = [
   },
   {
     title: "Veggie Rice Paper Rolls",
-    category: "school-lunch",
+    category: "dinner",
     is_gluten_free: true,
     prep_time_mins: 25,
     cook_time_mins: 0,
@@ -115,7 +115,7 @@ const SEED_RECIPES = [
   },
   {
     title: "GF Banana Pancakes",
-    category: "school-lunch",
+    category: "dinner",
     is_gluten_free: true,
     prep_time_mins: 5,
     cook_time_mins: 10,
@@ -194,7 +194,7 @@ const SEED_RECIPES = [
   },
   {
     title: "GF Chicken Nuggets",
-    category: "school-lunch",
+    category: "dinner",
     is_gluten_free: true,
     prep_time_mins: 15,
     cook_time_mins: 20,

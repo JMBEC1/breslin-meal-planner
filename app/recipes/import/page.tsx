@@ -168,7 +168,6 @@ export default function ImportRecipePage() {
               <span className="font-medium block mb-1.5">Category:</span>
               <div className="flex gap-2">
                 {([
-                  { value: "school-lunch", label: "School Lunch", colour: "bg-meal-sky" },
                   { value: "dinner", label: "Dinner", colour: "bg-meal-coral" },
                   { value: "fancy", label: "Special Occasion", colour: "bg-meal-plum" },
                   { value: "side", label: "Side", colour: "bg-meal-sage" },

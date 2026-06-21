@@ -66,36 +66,12 @@ function getSqlite(): Database.Database {
       created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       UNIQUE(recipe_id, person)
     );
-    CREATE TABLE IF NOT EXISTS inventory (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      name            TEXT    NOT NULL,
-      location        TEXT    NOT NULL DEFAULT 'pantry',
-      item_type       TEXT    NOT NULL DEFAULT 'ingredient',
-      quantity        TEXT    NOT NULL DEFAULT '1',
-      unit            TEXT    NOT NULL DEFAULT '',
-      aisle           TEXT    NOT NULL DEFAULT 'other',
-      recipe_id       INTEGER DEFAULT NULL,
-      servings        INTEGER DEFAULT NULL,
-      is_gluten_free  INTEGER NOT NULL DEFAULT 1,
-      notes           TEXT    DEFAULT NULL,
-      added_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-      expires_at      TEXT    DEFAULT NULL
-    );
     CREATE TABLE IF NOT EXISTS needs (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       name            TEXT    NOT NULL,
       added_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
-    CREATE TABLE IF NOT EXISTS cheat_meals (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      name            TEXT    NOT NULL,
-      category        TEXT    NOT NULL DEFAULT 'dinner',
-      is_gluten_free  INTEGER NOT NULL DEFAULT 1,
-      created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-    );
   `)
-  // Migration: add status column to inventory if missing (sqlite has no IF NOT EXISTS for ADD COLUMN).
-  try { _sqlite.exec("ALTER TABLE inventory ADD COLUMN status TEXT NOT NULL DEFAULT 'in_stock'") } catch { /* already exists */ }
   return _sqlite
 }
 
@@ -173,42 +149,12 @@ async function getNeon(): Promise<any> {
     )
   `
   await sql`
-    CREATE TABLE IF NOT EXISTS inventory (
-      id              SERIAL PRIMARY KEY,
-      name            TEXT NOT NULL,
-      location        TEXT NOT NULL DEFAULT 'pantry',
-      item_type       TEXT NOT NULL DEFAULT 'ingredient',
-      quantity        TEXT NOT NULL DEFAULT '1',
-      unit            TEXT NOT NULL DEFAULT '',
-      aisle           TEXT NOT NULL DEFAULT 'other',
-      recipe_id       INT  DEFAULT NULL,
-      servings        INT  DEFAULT NULL,
-      is_gluten_free  INT  NOT NULL DEFAULT 1,
-      notes           TEXT DEFAULT NULL,
-      added_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      expires_at      TEXT DEFAULT NULL
-    )
-  `
-  await sql`
     CREATE TABLE IF NOT EXISTS needs (
       id              SERIAL PRIMARY KEY,
       name            TEXT NOT NULL,
       added_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
-  await sql`
-    CREATE TABLE IF NOT EXISTS cheat_meals (
-      id              SERIAL PRIMARY KEY,
-      name            TEXT NOT NULL,
-      category        TEXT NOT NULL DEFAULT 'dinner',
-      is_gluten_free  INT  NOT NULL DEFAULT 1,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `
-  // Migration: add category column if missing
-  try { await sql`ALTER TABLE cheat_meals ADD COLUMN category TEXT NOT NULL DEFAULT 'dinner'` } catch { /* already exists */ }
-  // Migration: 3-state inventory status (in_stock / low / out). Existing rows backfill to in_stock via default.
-  try { await sql`ALTER TABLE inventory ADD COLUMN status TEXT NOT NULL DEFAULT 'in_stock'` } catch { /* already exists */ }
   _neon = sql
   return sql
 }
@@ -615,102 +561,6 @@ export async function upsertRating(recipeId: number, person: string, enjoyment: 
   return getRatings(recipeId)
 }
 
-// ── Inventory ─────────────────────────────────────────────────────────
-
-interface InventoryRow {
-  id: number; name: string; location: string; item_type: string
-  quantity: string; unit: string; aisle: string; recipe_id: number | null
-  servings: number | null; is_gluten_free: number; notes: string | null
-  added_at: string; expires_at: string | null
-  status: string | null
-}
-
-function parseInventoryItem(row: InventoryRow) {
-  return {
-    ...row,
-    is_gluten_free: !!row.is_gluten_free,
-    status: (row.status as "in_stock" | "low" | "out") || "in_stock",
-  }
-}
-
-export async function getInventory(location?: string) {
-  if (USE_NEON) {
-    const sql = await getNeon()
-    const rows = location
-      ? await sql`SELECT * FROM inventory WHERE location = ${location} ORDER BY item_type ASC, name ASC`
-      : await sql`SELECT * FROM inventory ORDER BY location ASC, item_type ASC, name ASC`
-    return (rows as InventoryRow[]).map(parseInventoryItem)
-  }
-  const db = getSqlite()
-  const rows = location
-    ? db.prepare("SELECT * FROM inventory WHERE location = ? ORDER BY item_type ASC, name ASC").all(location) as InventoryRow[]
-    : db.prepare("SELECT * FROM inventory ORDER BY location ASC, item_type ASC, name ASC").all() as InventoryRow[]
-  return rows.map(parseInventoryItem)
-}
-
-export async function insertInventoryItem(data: {
-  name: string; location: string; item_type: string; quantity?: string; unit?: string
-  aisle?: string; recipe_id?: number | null; servings?: number | null
-  is_gluten_free?: boolean; notes?: string | null; expires_at?: string | null
-}) {
-  const gf = data.is_gluten_free !== false ? 1 : 0
-  if (USE_NEON) {
-    const sql = await getNeon()
-    const rows = await sql`
-      INSERT INTO inventory (name, location, item_type, quantity, unit, aisle, recipe_id, servings, is_gluten_free, notes, expires_at)
-      VALUES (${data.name}, ${data.location}, ${data.item_type}, ${data.quantity || "1"}, ${data.unit || ""},
-        ${data.aisle || "other"}, ${data.recipe_id ?? null}, ${data.servings ?? null}, ${gf},
-        ${data.notes ?? null}, ${data.expires_at ?? null})
-      RETURNING *
-    `
-    return parseInventoryItem(rows[0] as InventoryRow)
-  }
-  const db = getSqlite()
-  const result = db.prepare(`
-    INSERT INTO inventory (name, location, item_type, quantity, unit, aisle, recipe_id, servings, is_gluten_free, notes, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(data.name, data.location, data.item_type, data.quantity || "1", data.unit || "",
-    data.aisle || "other", data.recipe_id ?? null, data.servings ?? null, gf,
-    data.notes ?? null, data.expires_at ?? null)
-  return parseInventoryItem(db.prepare("SELECT * FROM inventory WHERE id = ?").get(result.lastInsertRowid) as InventoryRow)
-}
-
-export async function updateInventoryItem(id: number, data: { name?: string; servings?: number; quantity?: string; notes?: string; location?: string; status?: "in_stock" | "low" | "out" }) {
-  if (USE_NEON) {
-    const sql = await getNeon()
-    if (data.name !== undefined) await sql`UPDATE inventory SET name = ${data.name} WHERE id = ${id}`
-    if (data.servings !== undefined) await sql`UPDATE inventory SET servings = ${data.servings} WHERE id = ${id}`
-    if (data.quantity !== undefined) await sql`UPDATE inventory SET quantity = ${data.quantity} WHERE id = ${id}`
-    if (data.notes !== undefined) await sql`UPDATE inventory SET notes = ${data.notes} WHERE id = ${id}`
-    if (data.location !== undefined) await sql`UPDATE inventory SET location = ${data.location} WHERE id = ${id}`
-    if (data.status !== undefined) await sql`UPDATE inventory SET status = ${data.status} WHERE id = ${id}`
-    const rows = await sql`SELECT * FROM inventory WHERE id = ${id}`
-    return rows.length ? parseInventoryItem(rows[0] as InventoryRow) : null
-  }
-  const db = getSqlite()
-  if (data.name !== undefined) db.prepare("UPDATE inventory SET name = ? WHERE id = ?").run(data.name, id)
-  if (data.servings !== undefined) db.prepare("UPDATE inventory SET servings = ? WHERE id = ?").run(data.servings, id)
-  if (data.quantity !== undefined) db.prepare("UPDATE inventory SET quantity = ? WHERE id = ?").run(data.quantity, id)
-  if (data.notes !== undefined) db.prepare("UPDATE inventory SET notes = ? WHERE id = ?").run(data.notes, id)
-  if (data.location !== undefined) db.prepare("UPDATE inventory SET location = ? WHERE id = ?").run(data.location, id)
-  if (data.status !== undefined) db.prepare("UPDATE inventory SET status = ? WHERE id = ?").run(data.status, id)
-  const row = db.prepare("SELECT * FROM inventory WHERE id = ?").get(id) as InventoryRow | undefined
-  return row ? parseInventoryItem(row) : null
-}
-
-export async function deleteInventoryItem(id: number) {
-  if (USE_NEON) {
-    const sql = await getNeon()
-    const rows = await sql`DELETE FROM inventory WHERE id = ${id} RETURNING *`
-    return rows.length ? parseInventoryItem(rows[0] as InventoryRow) : null
-  }
-  const db = getSqlite()
-  const row = db.prepare("SELECT * FROM inventory WHERE id = ?").get(id) as InventoryRow | undefined
-  if (!row) return null
-  db.prepare("DELETE FROM inventory WHERE id = ?").run(id)
-  return parseInventoryItem(row)
-}
-
 // ── Needs (Things We Need) ────────────────────────────────────────────
 
 interface NeedRow { id: number; name: string; added_at: string }
@@ -755,40 +605,3 @@ export async function clearNeeds(): Promise<void> {
   }
 }
 
-// ── Quick Meal Ingredients ────────────────────────────────────────────────
-
-interface CheatMealRow { id: number; name: string; category: string; is_gluten_free: number; created_at: string }
-
-export async function getCheatMeals() {
-  if (USE_NEON) {
-    const sql = await getNeon()
-    const rows = await sql`SELECT * FROM cheat_meals ORDER BY category ASC, name ASC`
-    return (rows as CheatMealRow[]).map((r) => ({ ...r, is_gluten_free: !!r.is_gluten_free }))
-  }
-  const db = getSqlite()
-  const rows = db.prepare("SELECT * FROM cheat_meals ORDER BY category ASC, name ASC").all() as CheatMealRow[]
-  return rows.map((r) => ({ ...r, is_gluten_free: !!r.is_gluten_free }))
-}
-
-export async function insertCheatMeal(name: string, isGlutenFree: boolean, category: string = "protein") {
-  const gf = isGlutenFree ? 1 : 0
-  if (USE_NEON) {
-    const sql = await getNeon()
-    const rows = await sql`INSERT INTO cheat_meals (name, category, is_gluten_free) VALUES (${name}, ${category}, ${gf}) RETURNING *`
-    return { ...rows[0], is_gluten_free: !!rows[0].is_gluten_free }
-  }
-  const db = getSqlite()
-  const result = db.prepare("INSERT INTO cheat_meals (name, category, is_gluten_free) VALUES (?, ?, ?)").run(name, category, gf)
-  const row = db.prepare("SELECT * FROM cheat_meals WHERE id = ?").get(result.lastInsertRowid) as CheatMealRow
-  return { ...row, is_gluten_free: !!row.is_gluten_free }
-}
-
-export async function deleteCheatMeal(id: number) {
-  if (USE_NEON) {
-    const sql = await getNeon()
-    await sql`DELETE FROM cheat_meals WHERE id = ${id}`
-  } else {
-    const db = getSqlite()
-    db.prepare("DELETE FROM cheat_meals WHERE id = ?").run(id)
-  }
-}
