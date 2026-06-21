@@ -3,6 +3,8 @@
 import { useRef, useState } from "react"
 import { TAKEAWAY_TYPE_KEYS, getTakeawayImageForType, type TakeawayKey } from "@/lib/takeaway-images"
 
+const MAX_BYTES = 4 * 1024 * 1024 // matches server cap; gives instant feedback before the upload round-trip
+
 const LABEL: Record<TakeawayKey, string> = {
   sushi: "Sushi",
   pizza: "Pizza",
@@ -25,6 +27,10 @@ export function TakeawayPhotosModal({ overrides, onChange, onClose }: Props) {
 
   async function upload(type: TakeawayKey, file: File) {
     setError(null)
+    if (file.size > MAX_BYTES) {
+      setError(`Image is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 4MB. Try a smaller file or compress it first.`)
+      return
+    }
     setBusy(type)
     try {
       const form = new FormData()
@@ -56,6 +62,8 @@ export function TakeawayPhotosModal({ overrides, onChange, onClose }: Props) {
       const next = { ...overrides }
       delete next[type]
       onChange(next)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Reset failed")
     } finally {
       setBusy(null)
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { put } from "@vercel/blob"
+import { put, del } from "@vercel/blob"
 import { setTakeawayImageOverride, deleteTakeawayImageOverride } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
@@ -7,7 +7,9 @@ export const runtime = "nodejs"
 export const maxDuration = 30
 
 const ALLOWED_TYPES = new Set(["sushi", "pizza", "thai", "indian", "burgers", "other"])
-const MAX_BYTES = 5 * 1024 * 1024 // 5MB
+// Vercel functions cap request bodies at ~4.5MB (Hobby/Pro). Stay safely under
+// so the friendly error message reaches the user instead of a platform 413.
+const MAX_BYTES = 4 * 1024 * 1024 // 4MB
 
 export async function POST(
   req: NextRequest,
@@ -47,7 +49,13 @@ export async function POST(
     contentType: file.type,
   })
 
-  await setTakeawayImageOverride(type, blob.url)
+  const previousUrl = await setTakeawayImageOverride(type, blob.url)
+  // Free the previous Blob if we replaced one. Wrapped in try/catch — an
+  // orphan blob is recoverable later, but a failed del() shouldn't 500 the
+  // upload the user just successfully made.
+  if (previousUrl && previousUrl !== blob.url) {
+    try { await del(previousUrl) } catch { /* orphan, manual cleanup if needed */ }
+  }
   return NextResponse.json({ type, url: blob.url })
 }
 
@@ -60,6 +68,9 @@ export async function DELETE(
   if (!ALLOWED_TYPES.has(type)) {
     return NextResponse.json({ error: "unknown_type" }, { status: 400 })
   }
-  await deleteTakeawayImageOverride(type)
+  const previousUrl = await deleteTakeawayImageOverride(type)
+  if (previousUrl) {
+    try { await del(previousUrl) } catch { /* orphan */ }
+  }
   return NextResponse.json({ type, cleared: true })
 }

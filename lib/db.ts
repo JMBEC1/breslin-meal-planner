@@ -632,30 +632,40 @@ export async function getTakeawayImageOverrides(): Promise<Record<string, string
   return Object.fromEntries(rows.map((r) => [r.type, r.image_url]))
 }
 
-export async function setTakeawayImageOverride(type: string, imageUrl: string): Promise<void> {
+// Returns the PREVIOUS image_url (or null if none) so the caller can clean
+// up the old Vercel Blob and avoid orphaned files.
+export async function setTakeawayImageOverride(type: string, imageUrl: string): Promise<string | null> {
   if (USE_NEON) {
     const sql = await getNeon()
+    const prevRows = await sql`SELECT image_url FROM takeaway_images WHERE type = ${type}` as TakeawayImageRow[]
+    const previous = prevRows[0]?.image_url ?? null
     await sql`
       INSERT INTO takeaway_images (type, image_url) VALUES (${type}, ${imageUrl})
       ON CONFLICT (type) DO UPDATE SET image_url = EXCLUDED.image_url, updated_at = NOW()
     `
-    return
+    return previous
   }
   const db = getSqlite()
+  const prev = db.prepare("SELECT image_url FROM takeaway_images WHERE type = ?").get(type) as TakeawayImageRow | undefined
+  const previous = prev?.image_url ?? null
   db.prepare(`
     INSERT INTO takeaway_images (type, image_url) VALUES (?, ?)
     ON CONFLICT(type) DO UPDATE SET image_url = excluded.image_url,
       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   `).run(type, imageUrl)
+  return previous
 }
 
-export async function deleteTakeawayImageOverride(type: string): Promise<void> {
+// Returns the deleted image_url so the caller can clean up the Blob.
+export async function deleteTakeawayImageOverride(type: string): Promise<string | null> {
   if (USE_NEON) {
     const sql = await getNeon()
-    await sql`DELETE FROM takeaway_images WHERE type = ${type}`
-    return
+    const rows = await sql`DELETE FROM takeaway_images WHERE type = ${type} RETURNING image_url` as TakeawayImageRow[]
+    return rows[0]?.image_url ?? null
   }
   const db = getSqlite()
+  const row = db.prepare("SELECT image_url FROM takeaway_images WHERE type = ?").get(type) as TakeawayImageRow | undefined
   db.prepare("DELETE FROM takeaway_images WHERE type = ?").run(type)
+  return row?.image_url ?? null
 }
 
