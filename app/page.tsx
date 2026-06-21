@@ -89,6 +89,10 @@ interface DinnerSuggestion {
   leftovers?: boolean
   description?: string
   source_hint?: string
+  // Set by the user in the results view when they convert an AI suggestion
+  // to a takeaway/cheat slot. Skips the saveAsSuggestionRecipe step so we
+  // don't pollute the recipe library with "Takeaway: Sushi" entries.
+  isCustomSlot?: boolean
 }
 
 // Per-day plan override. "auto" = let AI fill; the rest become custom_text
@@ -144,6 +148,7 @@ export default function PlanPage() {
   const [inspiration, setInspiration] = useState("")
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null)
   const [dinnersSaved, setDinnersSaved] = useState(false)
+  const [expandedResultIdx, setExpandedResultIdx] = useState<number | null>(null)
   // Per-day overrides — default all Auto so "Surprise Me!" still works in one tap.
   const [dayOverrides, setDayOverrides] = useState<Record<DayOfWeek, DayOverride>>(() =>
     Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>,
@@ -276,6 +281,7 @@ export default function PlanPage() {
     setGeneratingDinners(true)
     setDinnerResults(null)
     setDinnersSaved(false)
+    setExpandedResultIdx(null)
     // Zero auto days = nothing for AI to fill. Skip the API and let the user
     // hit "Use These Dinners" to apply override-only slots.
     if (autoDays.length === 0) {
@@ -301,10 +307,21 @@ export default function PlanPage() {
 
   async function handleSwapDinner(index: number) {
     setSwappingIndex(index)
+    // Exclude every other current result so the swap can't hand back a
+    // dinner the user is already looking at.
+    const excludeTitles = (dinnerResults ?? [])
+      .filter((_, i) => i !== index)
+      .map((d) => d.title)
+      .filter(Boolean)
     const res = await fetch("/api/plan/generate-dinners", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: dinnerMode, inspiration: inspiration.trim() || undefined, swapIndex: index }),
+      body: JSON.stringify({
+        mode: dinnerMode,
+        inspiration: inspiration.trim() || undefined,
+        swapIndex: index,
+        excludeTitles,
+      }),
     })
     if (res.ok) {
       const data = await res.json()
@@ -318,6 +335,40 @@ export default function PlanPage() {
       }
     }
     setSwappingIndex(null)
+  }
+
+  // Convert one of the AI result rows into a "Cheat meal" custom slot.
+  function setResultAsCheat(index: number) {
+    setDinnerResults((prev) => {
+      if (!prev) return prev
+      const next = [...prev]
+      next[index] = {
+        recipe_id: null,
+        title: "Cheat meal",
+        is_gluten_free: true,
+        leftovers: false,
+        isCustomSlot: true,
+      }
+      return next
+    })
+    setExpandedResultIdx(null)
+  }
+
+  // Convert one of the AI result rows into a "Takeaway: <type>" custom slot.
+  function setResultAsTakeaway(index: number, type: TakeawayType) {
+    setDinnerResults((prev) => {
+      if (!prev) return prev
+      const next = [...prev]
+      next[index] = {
+        recipe_id: null,
+        title: `Takeaway: ${type}`,
+        is_gluten_free: true,
+        leftovers: false,
+        isCustomSlot: true,
+      }
+      return next
+    })
+    setExpandedResultIdx(null)
   }
 
   // Save an AI suggestion as a real recipe (with auto image) and return the new ID
@@ -383,6 +434,18 @@ export default function PlanPage() {
       const dinner = dinnerResults[suggestionIdx]
       if (!dinner) continue
       suggestionIdx++
+      // Per-result overrides (user clicked Cheat or Takeaway:X on this row)
+      // bypass recipe creation entirely — they're plain custom_text slots.
+      if (dinner.isCustomSlot) {
+        updated.push({
+          day,
+          meal_type: "dinner" as MealType,
+          recipe_id: null,
+          custom_text: dinner.title,
+        })
+        leftoverFor = null
+        continue
+      }
       const recipeId = await saveAsSuggestionRecipe(dinner, "dinner")
       updated.push({
         day,
@@ -401,6 +464,7 @@ export default function PlanPage() {
     setDinnerResults(null)
     setDinnersSaved(false)
     setInspiration("")
+    setExpandedResultIdx(null)
     setDayOverrides(Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>)
     setTakeawayTypes({})
   }
@@ -948,41 +1012,83 @@ export default function PlanPage() {
                 )}
                 <div className="space-y-2 mb-4">
                   {dinnerResults.map((d, i) => (
-                    <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-meal-cream group">
-                      <span className="text-sm font-bold text-meal-coral w-5 shrink-0 mt-0.5">{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-meal-charcoal">{d.title}</p>
-                        {d.description && <p className="text-xs text-meal-muted mt-0.5">{d.description}</p>}
-                        <div className="flex items-center gap-2 mt-1">
-                          {d.is_gluten_free ? (
-                            <span className="text-[10px] font-semibold text-meal-sage">GF</span>
-                          ) : (
-                            <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
-                          )}
-                          {d.leftovers && (
-                            <span className="text-[10px] font-semibold text-meal-plum">+ Leftovers</span>
-                          )}
-                          {d.source_hint && (
-                            <span className="text-[10px] text-meal-muted">{d.source_hint}</span>
-                          )}
+                    <div key={i} className="rounded-lg bg-meal-cream overflow-hidden">
+                      <div className="flex items-start gap-2 p-3 group">
+                        <span className="text-sm font-bold text-meal-coral w-5 shrink-0 mt-0.5">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium ${d.isCustomSlot ? "text-meal-plum" : "text-meal-charcoal"}`}>
+                            {d.title}
+                          </p>
+                          {d.description && <p className="text-xs text-meal-muted mt-0.5">{d.description}</p>}
+                          <div className="flex items-center gap-2 mt-1">
+                            {d.isCustomSlot ? (
+                              <span className="text-[10px] font-semibold text-meal-plum uppercase tracking-wider">Manual pick</span>
+                            ) : d.is_gluten_free ? (
+                              <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
+                            )}
+                            {d.leftovers && (
+                              <span className="text-[10px] font-semibold text-meal-plum">+ Leftovers</span>
+                            )}
+                            {d.source_hint && (
+                              <span className="text-[10px] text-meal-muted">{d.source_hint}</span>
+                            )}
+                          </div>
                         </div>
+                        {!dinnersSaved && (
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {/* Re-roll AI suggestion (disabled for manual picks — re-roll has nothing to swap to) */}
+                            <button
+                              onClick={() => handleSwapDinner(i)}
+                              disabled={swappingIndex === i || d.isCustomSlot}
+                              className="p-1.5 rounded-lg text-meal-muted hover:text-meal-coral hover:bg-white transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-meal-muted"
+                              title={d.isCustomSlot ? "Pick a new option below to swap back" : "Re-roll this meal"}
+                            >
+                              {swappingIndex === i ? (
+                                <div className="w-4 h-4 border-2 border-meal-coral border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
+                                </svg>
+                              )}
+                            </button>
+                            {/* More options: cheat / takeaway type */}
+                            <button
+                              onClick={() => setExpandedResultIdx(expandedResultIdx === i ? null : i)}
+                              className={`p-1.5 rounded-lg transition-colors hover:bg-white ${expandedResultIdx === i ? "text-meal-coral bg-white" : "text-meal-muted hover:text-meal-coral"}`}
+                              title="Make takeaway or cheat meal instead"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      {/* Swap button */}
-                      {!dinnersSaved && (
-                        <button
-                          onClick={() => handleSwapDinner(i)}
-                          disabled={swappingIndex === i}
-                          className="p-1.5 rounded-lg text-meal-muted hover:text-meal-coral hover:bg-white transition-colors shrink-0"
-                          title="Swap this meal"
-                        >
-                          {swappingIndex === i ? (
-                            <div className="w-4 h-4 border-2 border-meal-coral border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
-                            </svg>
-                          )}
-                        </button>
+                      {expandedResultIdx === i && !dinnersSaved && (
+                        <div className="px-3 pb-3 pt-1 border-t border-meal-warm/50 bg-white/40">
+                          <p className="text-[10px] font-bold text-meal-muted uppercase tracking-wider mb-1.5">
+                            Replace with
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              onClick={() => setResultAsCheat(i)}
+                              className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-meal-plum/15 text-meal-plum hover:bg-meal-plum/25"
+                            >
+                              🍱 Cheat meal
+                            </button>
+                            {(["Sushi", "Pizza", "Thai", "Indian", "Burgers", "Other"] as const).map((t) => (
+                              <button
+                                key={t}
+                                onClick={() => setResultAsTakeaway(i, t)}
+                                className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-meal-coral/15 text-meal-coral hover:bg-meal-coral/25"
+                              >
+                                🥡 {t}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -991,7 +1097,7 @@ export default function PlanPage() {
                 {!dinnersSaved ? (
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setDinnerResults(null); setDinnersSaved(false) }}
+                      onClick={() => { setDinnerResults(null); setDinnersSaved(false); setExpandedResultIdx(null) }}
                       className="flex-1 py-2.5 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium"
                     >
                       Re-roll All

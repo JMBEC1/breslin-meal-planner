@@ -5,14 +5,21 @@ import { getRecipes, getAllRatings } from "@/lib/db"
 export const dynamic = "force-dynamic"
 
 export async function POST(req: NextRequest) {
-  const { mode, inspiration, swapIndex, targetCount } = await req.json()
+  const { mode, inspiration, swapIndex, targetCount, excludeTitles } = await req.json()
   // mode: "stored" | "internet" | "mix"
   // inspiration: optional string like "indian", "slow cooker", "salads"
   // swapIndex: if set, only regenerate one meal (returns a single suggestion)
   // targetCount: how many dinners to generate (caller passes the auto-day count).
   //   Falls back to a 5-7 range if omitted.
+  // excludeTitles: titles of dinners already in the current results — used by
+  //   the swap flow so we don't return what the user is already looking at.
   const wantCount: number | undefined =
     typeof targetCount === "number" && targetCount > 0 && targetCount <= 7 ? Math.floor(targetCount) : undefined
+  const excludeSet = new Set(
+    (Array.isArray(excludeTitles) ? excludeTitles : [])
+      .filter((t): t is string => typeof t === "string")
+      .map((t) => t.toLowerCase().trim()),
+  )
 
   const client = getAnthropicClient()
   if (!client && mode !== "stored") {
@@ -36,6 +43,10 @@ export async function POST(req: NextRequest) {
     ? `\n\nIMPORTANT THEME/INSPIRATION: The family wants meals inspired by "${inspiration.trim()}". Focus suggestions around this theme where possible.`
     : ""
 
+  const excludeNote = excludeSet.size > 0
+    ? `\n\nDO NOT suggest any of these (already in the user's list): ${[...excludeSet].join(", ")}.`
+    : ""
+
   // Mode: stored only — pick randomly from existing recipes, weighted by ratings
   if (mode === "stored") {
     if (recipes.length === 0) {
@@ -53,6 +64,7 @@ export async function POST(req: NextRequest) {
 
 Recipes:
 ${recipeContext}
+${excludeNote}
 
 Big meals (6+ servings) can cover 2 nights with leftovers.
 
@@ -82,9 +94,18 @@ Return ONLY valid JSON (no markdown fences):
     const shuffled = weighted.sort(() => Math.random() - 0.5)
       .sort((a, b) => b.weight - a.weight)
 
+    // Drop anything already in the result list — without this, swap would
+    // hand back the same top-weighted recipe every press.
+    const eligible = excludeSet.size > 0
+      ? shuffled.filter(({ recipe }) => !excludeSet.has(recipe.title.toLowerCase().trim()))
+      : shuffled
+
     if (swapIndex !== undefined) {
-      // Just return 1 random recipe for swap
-      const pick = shuffled[0]
+      // Pick from the top-K weighted-and-eligible pool so swap actually
+      // varies. Fall back to the full shuffle if exclusion empties the pool.
+      const pool = eligible.length > 0 ? eligible : shuffled
+      const topK = pool.slice(0, Math.min(8, pool.length))
+      const pick = topK[Math.floor(Math.random() * topK.length)]
       return NextResponse.json({
         dinners: [{
           recipe_id: pick.recipe.id,
@@ -137,7 +158,7 @@ Return ONLY valid JSON (no markdown fences):
       role: "user",
       content: `You are a family meal planner for an Australian family. One daughter is gluten-free, so prefer GF recipes. When suggesting non-GF meals, note the GF swap.
 
-${modeInstruction}${inspirationNote}
+${modeInstruction}${inspirationNote}${excludeNote}
 
 Consider that big meals (6+ servings) can cover 2 nights with leftovers, so you may suggest fewer than 7 recipes if some are large.
 
