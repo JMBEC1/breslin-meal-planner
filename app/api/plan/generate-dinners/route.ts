@@ -5,10 +5,14 @@ import { getRecipes, getAllRatings } from "@/lib/db"
 export const dynamic = "force-dynamic"
 
 export async function POST(req: NextRequest) {
-  const { mode, inspiration, swapIndex } = await req.json()
+  const { mode, inspiration, swapIndex, targetCount } = await req.json()
   // mode: "stored" | "internet" | "mix"
   // inspiration: optional string like "indian", "slow cooker", "salads"
   // swapIndex: if set, only regenerate one meal (returns a single suggestion)
+  // targetCount: how many dinners to generate (caller passes the auto-day count).
+  //   Falls back to a 5-7 range if omitted.
+  const wantCount: number | undefined =
+    typeof targetCount === "number" && targetCount > 0 && targetCount <= 7 ? Math.floor(targetCount) : undefined
 
   const client = getAnthropicClient()
   if (!client && mode !== "stored") {
@@ -45,7 +49,7 @@ export async function POST(req: NextRequest) {
         max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `Pick ${swapIndex !== undefined ? "1 dinner" : "5-7 dinners"} from this list that best match the theme "${inspiration.trim()}". If few match, pick the closest ones.
+          content: `Pick ${swapIndex !== undefined ? "1 dinner" : wantCount ? `exactly ${wantCount} dinner${wantCount === 1 ? "" : "s"}` : "5-7 dinners"} from this list that best match the theme "${inspiration.trim()}". If few match, pick the closest ones.
 
 Recipes:
 ${recipeContext}
@@ -93,10 +97,11 @@ Return ONLY valid JSON (no markdown fences):
       })
     }
 
+    const dayBudget = wantCount ?? 7
     const selected: typeof recipes = []
     let totalServingDays = 0
     for (const item of shuffled) {
-      if (totalServingDays >= 7) break
+      if (totalServingDays >= dayBudget) break
       selected.push(item.recipe)
       const servings = item.recipe.servings || 4
       totalServingDays += servings >= 6 ? 2 : 1
@@ -115,7 +120,11 @@ Return ONLY valid JSON (no markdown fences):
   }
 
   // Mode: internet or mix — use AI
-  const count = swapIndex !== undefined ? "1 dinner recipe" : "5-7 dinner recipes"
+  const count = swapIndex !== undefined
+    ? "1 dinner recipe"
+    : wantCount
+      ? `exactly ${wantCount} dinner recipe${wantCount === 1 ? "" : "s"}`
+      : "5-7 dinner recipes"
 
   const modeInstruction = mode === "internet"
     ? `Suggest ${count} that are NEW — from popular food websites and blogs (RecipeTin Eats, Donna Hay, Taste.com.au, etc). Do NOT use any from the stored list. Focus on highly-rated, well-known recipes.`

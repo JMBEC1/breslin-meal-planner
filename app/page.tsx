@@ -89,6 +89,36 @@ interface DinnerSuggestion {
   source_hint?: string
 }
 
+// Per-day plan override. "auto" = let AI fill; the rest become custom_text
+// slots so a re-roll doesn't clobber them. "skip" leaves the day empty.
+type DayOverride = "auto" | "cheat" | "takeaway" | "skip"
+
+const OVERRIDE_CYCLE: Record<DayOverride, DayOverride> = {
+  auto: "cheat",
+  cheat: "takeaway",
+  takeaway: "skip",
+  skip: "auto",
+}
+
+const OVERRIDE_LABEL: Record<DayOverride, string> = {
+  auto: "Auto",
+  cheat: "Cheat",
+  takeaway: "Takeaway",
+  skip: "Skip",
+}
+
+const OVERRIDE_CUSTOM_TEXT: Record<Exclude<DayOverride, "auto" | "skip">, string> = {
+  cheat: "Cheat meal",
+  takeaway: "Takeaway",
+}
+
+const OVERRIDE_CHIP_CLASS: Record<DayOverride, string> = {
+  auto: "bg-meal-warm text-meal-charcoal hover:bg-meal-warm/80",
+  cheat: "bg-meal-plum/15 text-meal-plum hover:bg-meal-plum/25",
+  takeaway: "bg-meal-coral/15 text-meal-coral hover:bg-meal-coral/25",
+  skip: "bg-meal-muted/15 text-meal-muted hover:bg-meal-muted/25",
+}
+
 export default function PlanPage() {
   const router = useRouter()
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
@@ -109,6 +139,11 @@ export default function PlanPage() {
   const [inspiration, setInspiration] = useState("")
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null)
   const [dinnersSaved, setDinnersSaved] = useState(false)
+  // Per-day overrides — default all Auto so "Surprise Me!" still works in one tap.
+  const [dayOverrides, setDayOverrides] = useState<Record<DayOfWeek, DayOverride>>(() =>
+    Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>,
+  )
+  const autoDays = DAYS.filter((d) => dayOverrides[d] === "auto")
 
   // Image picker modal state — change a recipe's image_url from a meal card.
   const [imagePickerRecipe, setImagePickerRecipe] = useState<Recipe | null>(null)
@@ -239,14 +274,25 @@ export default function PlanPage() {
     setGeneratingDinners(true)
     setDinnerResults(null)
     setDinnersSaved(false)
+    // Zero auto days = nothing for AI to fill. Skip the API and let the user
+    // hit "Use These Dinners" to apply override-only slots.
+    if (autoDays.length === 0) {
+      setDinnerResults([])
+      setGeneratingDinners(false)
+      return
+    }
     const res = await fetch("/api/plan/generate-dinners", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: dinnerMode, inspiration: inspiration.trim() || undefined }),
+      body: JSON.stringify({
+        mode: dinnerMode,
+        inspiration: inspiration.trim() || undefined,
+        targetCount: autoDays.length,
+      }),
     })
     if (res.ok) {
       const data = await res.json()
-      setDinnerResults(data.dinners || [])
+      setDinnerResults((data.dinners || []).slice(0, autoDays.length))
     }
     setGeneratingDinners(false)
   }
@@ -300,12 +346,38 @@ export default function PlanPage() {
   async function applyDinnerResults() {
     if (!dinnerResults) return
     const updated = meals.filter((m) => m.meal_type !== "dinner")
-    const dinnerDays = DAYS.slice()
-    let dayIndex = 0
-    for (const dinner of dinnerResults) {
-      if (dayIndex >= 7) break
-      const day = dinnerDays[dayIndex]
-      // Auto-save AI suggestions as recipes
+    // Walk the week in order. Override days get custom_text (or no slot for
+    // "skip"); auto days consume the next AI suggestion. Leftovers from an
+    // AI meal claim the *next auto day* — they don't displace an override.
+    let suggestionIdx = 0
+    let leftoverFor: string | null = null
+    for (const day of DAYS) {
+      const mode = dayOverrides[day]
+      if (mode === "skip") { leftoverFor = null; continue }
+      if (mode === "cheat" || mode === "takeaway") {
+        updated.push({
+          day,
+          meal_type: "dinner" as MealType,
+          recipe_id: null,
+          custom_text: OVERRIDE_CUSTOM_TEXT[mode],
+        })
+        leftoverFor = null
+        continue
+      }
+      // mode === "auto"
+      if (leftoverFor) {
+        updated.push({
+          day,
+          meal_type: "dinner" as MealType,
+          recipe_id: null,
+          custom_text: `Leftovers: ${leftoverFor}`,
+        })
+        leftoverFor = null
+        continue
+      }
+      const dinner = dinnerResults[suggestionIdx]
+      if (!dinner) continue
+      suggestionIdx++
       const recipeId = await saveAsSuggestionRecipe(dinner, "dinner")
       updated.push({
         day,
@@ -313,16 +385,7 @@ export default function PlanPage() {
         recipe_id: recipeId,
         custom_text: recipeId ? null : dinner.title,
       })
-      if (dinner.leftovers && dayIndex + 1 < 7) {
-        dayIndex++
-        updated.push({
-          day: dinnerDays[dayIndex],
-          meal_type: "dinner" as MealType,
-          recipe_id: null,
-          custom_text: `Leftovers: ${dinner.title}`,
-        })
-      }
-      dayIndex++
+      if (dinner.leftovers) leftoverFor = dinner.title
     }
     await savePlan(updated)
     setDinnersSaved(true)
@@ -333,6 +396,7 @@ export default function PlanPage() {
     setDinnerResults(null)
     setDinnersSaved(false)
     setInspiration("")
+    setDayOverrides(Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>)
   }
 
   async function openPicker(day: DayOfWeek, mealType: MealType, addSide?: boolean) {
@@ -683,6 +747,51 @@ export default function PlanPage() {
               Fill your week with dinners. Swap any you don&apos;t like, add a theme, or go with surprise.
             </p>
 
+            {/* Plan the week — per-day override chips. Default Auto = let AI fill. */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-meal-muted uppercase tracking-wider">
+                  Plan the week
+                </label>
+                {DAYS.some((d) => dayOverrides[d] !== "auto") && (
+                  <button
+                    onClick={() => setDayOverrides(Object.fromEntries(DAYS.map((d) => [d, "auto" as const])) as Record<DayOfWeek, DayOverride>)}
+                    className="text-[10px] text-meal-muted hover:text-meal-charcoal font-medium uppercase tracking-wider"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {DAYS.map((day) => {
+                  const mode = dayOverrides[day]
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => {
+                        setDayOverrides((prev) => ({ ...prev, [day]: OVERRIDE_CYCLE[prev[day]] }))
+                        if (dinnerResults) { setDinnerResults(null); setDinnersSaved(false) }
+                      }}
+                      className={`flex flex-col items-center py-1.5 rounded-md text-[10px] font-semibold uppercase transition-colors ${OVERRIDE_CHIP_CLASS[mode]}`}
+                      title={`${DAY_LABELS[day]} — tap to cycle: Auto → Cheat → Takeaway → Skip`}
+                    >
+                      <span className="text-[10px]">{DAY_LABELS[day]}</span>
+                      <span className="text-[9px] font-medium tracking-normal normal-case mt-0.5 opacity-80">
+                        {OVERRIDE_LABEL[mode]}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] text-meal-muted mt-1.5">
+                {autoDays.length === 7
+                  ? "All nights set to Auto — full random."
+                  : autoDays.length === 0
+                    ? "Nothing for AI to fill — hit Apply Plan to lock in your overrides."
+                    : `AI will fill ${autoDays.length} of 7 nights.`}
+              </p>
+            </div>
+
             {/* Mode selector */}
             <div className="flex gap-1 bg-meal-warm rounded-lg p-1 mb-4">
               {([
@@ -738,7 +847,15 @@ export default function PlanPage() {
                 disabled={generatingDinners}
                 className="w-full py-3 rounded-lg bg-meal-coral text-white font-medium hover:bg-meal-coral/80 transition-colors disabled:opacity-50 mt-3"
               >
-                {generatingDinners ? "Generating..." : inspiration.trim() ? `Generate "${inspiration}" Dinners` : "Surprise Me!"}
+                {generatingDinners
+                  ? "Generating..."
+                  : autoDays.length === 0
+                    ? "Apply Plan"
+                    : inspiration.trim()
+                      ? `Generate "${inspiration}" Dinners`
+                      : autoDays.length === 7
+                        ? "Surprise Me!"
+                        : `Generate ${autoDays.length} ${autoDays.length === 1 ? "Dinner" : "Dinners"}`}
               </button>
             )}
 
@@ -753,6 +870,11 @@ export default function PlanPage() {
             {/* Results */}
             {dinnerResults && !generatingDinners && (
               <div className="mt-4">
+                {dinnerResults.length === 0 && !dinnersSaved && (
+                  <div className="p-3 rounded-lg bg-meal-cream text-sm text-meal-muted mb-4">
+                    No AI nights to fill — your overrides are ready to apply.
+                  </div>
+                )}
                 <div className="space-y-2 mb-4">
                   {dinnerResults.map((d, i) => (
                     <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-meal-cream group">
