@@ -71,6 +71,11 @@ function getSqlite(): Database.Database {
       name            TEXT    NOT NULL,
       added_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
+    CREATE TABLE IF NOT EXISTS takeaway_images (
+      type            TEXT    PRIMARY KEY,
+      image_url       TEXT    NOT NULL,
+      updated_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
   `)
   return _sqlite
 }
@@ -153,6 +158,13 @@ async function getNeon(): Promise<any> {
       id              SERIAL PRIMARY KEY,
       name            TEXT NOT NULL,
       added_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS takeaway_images (
+      type            TEXT PRIMARY KEY,
+      image_url       TEXT NOT NULL,
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
   _neon = sql
@@ -603,5 +615,47 @@ export async function clearNeeds(): Promise<void> {
     const db = getSqlite()
     db.prepare("DELETE FROM needs").run()
   }
+}
+
+// ── Takeaway photos ────────────────────────────────────────────────────────
+
+interface TakeawayImageRow { type: string; image_url: string; updated_at: string }
+
+export async function getTakeawayImageOverrides(): Promise<Record<string, string>> {
+  if (USE_NEON) {
+    const sql = await getNeon()
+    const rows = await sql`SELECT type, image_url FROM takeaway_images` as TakeawayImageRow[]
+    return Object.fromEntries(rows.map((r) => [r.type, r.image_url]))
+  }
+  const db = getSqlite()
+  const rows = db.prepare("SELECT type, image_url FROM takeaway_images").all() as TakeawayImageRow[]
+  return Object.fromEntries(rows.map((r) => [r.type, r.image_url]))
+}
+
+export async function setTakeawayImageOverride(type: string, imageUrl: string): Promise<void> {
+  if (USE_NEON) {
+    const sql = await getNeon()
+    await sql`
+      INSERT INTO takeaway_images (type, image_url) VALUES (${type}, ${imageUrl})
+      ON CONFLICT (type) DO UPDATE SET image_url = EXCLUDED.image_url, updated_at = NOW()
+    `
+    return
+  }
+  const db = getSqlite()
+  db.prepare(`
+    INSERT INTO takeaway_images (type, image_url) VALUES (?, ?)
+    ON CONFLICT(type) DO UPDATE SET image_url = excluded.image_url,
+      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  `).run(type, imageUrl)
+}
+
+export async function deleteTakeawayImageOverride(type: string): Promise<void> {
+  if (USE_NEON) {
+    const sql = await getNeon()
+    await sql`DELETE FROM takeaway_images WHERE type = ${type}`
+    return
+  }
+  const db = getSqlite()
+  db.prepare("DELETE FROM takeaway_images WHERE type = ?").run(type)
 }
 

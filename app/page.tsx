@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { DAYS, DAY_LABELS } from "@/types"
 import type { MealSlot, DayOfWeek, MealType, Recipe } from "@/types"
 import { ImagePickerModal } from "@/components/ImagePickerModal"
+import { TakeawayPhotosModal } from "@/components/TakeawayPhotosModal"
 import { getTakeawayImage } from "@/lib/takeaway-images"
 
 // Use LOCAL date components, not UTC, when serialising YYYY-MM-DD. toISOString()
@@ -149,6 +150,10 @@ export default function PlanPage() {
   )
   // Takeaway type per day — only consulted when dayOverrides[day] === "takeaway".
   const [takeawayTypes, setTakeawayTypes] = useState<Partial<Record<DayOfWeek, TakeawayType>>>({})
+  // Takeaway photo overrides keyed by cuisine (lower-case). Persisted in Neon
+  // via /api/takeaway-images; loaded once on mount.
+  const [takeawayPhotos, setTakeawayPhotos] = useState<Record<string, string>>({})
+  const [photosModalOpen, setPhotosModalOpen] = useState(false)
   const autoDays = DAYS.filter((d) => dayOverrides[d] === "auto")
   const takeawayDays = DAYS.filter((d) => dayOverrides[d] === "takeaway")
 
@@ -181,6 +186,15 @@ export default function PlanPage() {
   }, [weekStart])
 
   useEffect(() => { fetchPlan() }, [fetchPlan])
+
+  // One-shot load of takeaway photo overrides. New uploads from the manager
+  // modal update local state directly so we don't need to refetch.
+  useEffect(() => {
+    fetch("/api/takeaway-images")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data) => setTakeawayPhotos(data || {}))
+      .catch(() => { /* fall back to static photos */ })
+  }, [])
 
   function getSlot(day: DayOfWeek, mealType: MealType): MealSlot | undefined {
     return meals.find((m) => m.day === day && m.meal_type === mealType)
@@ -477,7 +491,7 @@ export default function PlanPage() {
         }) {
           const title = recipe?.title || customText || "Nothing planned"
           const hasContent = recipe || customText
-          const takeawayImg = getTakeawayImage(customText)
+          const takeawayImg = getTakeawayImage(customText, takeawayPhotos)
           const heroImg = recipe?.image_url || takeawayImg
           return (
             <div
@@ -591,7 +605,7 @@ export default function PlanPage() {
                 {(["dinner"] as MealType[]).map((mealType) => {
                   const slot = getSlot(day, mealType)
                   const recipe = slot?.recipe_id ? recipes[slot.recipe_id] : null
-                  const tileImg = recipe?.image_url || getTakeawayImage(slot?.custom_text)
+                  const tileImg = recipe?.image_url || getTakeawayImage(slot?.custom_text, takeawayPhotos)
                   return (
                     <div
                       key={mealType}
@@ -683,7 +697,7 @@ export default function PlanPage() {
                   {(["dinner"] as MealType[]).map((mealType) => {
                     const slot = getSlot(day, mealType)
                     const recipe = slot?.recipe_id ? recipes[slot.recipe_id] : null
-                    const rowImg = recipe?.image_url || getTakeawayImage(slot?.custom_text)
+                    const rowImg = recipe?.image_url || getTakeawayImage(slot?.custom_text, takeawayPhotos)
                     return (
                       <div
                         key={mealType}
@@ -808,6 +822,15 @@ export default function PlanPage() {
               {/* Takeaway type pickers — one row per day in Takeaway mode */}
               {takeawayDays.length > 0 && (
                 <div className="mt-3 space-y-1.5 p-2.5 rounded-lg bg-meal-coral/5 border border-meal-coral/15">
+                  <div className="flex items-center justify-between -mb-0.5">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-meal-coral">Pick a cuisine</span>
+                    <button
+                      onClick={() => setPhotosModalOpen(true)}
+                      className="text-[10px] font-medium text-meal-coral hover:text-meal-coral/70 underline-offset-2 hover:underline"
+                    >
+                      📷 Manage photos
+                    </button>
+                  </div>
                   {takeawayDays.map((day) => (
                     <div key={day} className="flex items-center gap-2 flex-wrap">
                       <span className="text-[10px] font-bold text-meal-coral uppercase tracking-wider w-9 shrink-0">
@@ -1175,6 +1198,13 @@ export default function PlanPage() {
           recipe={imagePickerRecipe}
           onSaved={(updated) => setRecipes((prev) => ({ ...prev, [updated.id]: updated }))}
           onClose={() => setImagePickerRecipe(null)}
+        />
+      )}
+      {photosModalOpen && (
+        <TakeawayPhotosModal
+          overrides={takeawayPhotos}
+          onChange={setTakeawayPhotos}
+          onClose={() => setPhotosModalOpen(false)}
         />
       )}
     </div>
