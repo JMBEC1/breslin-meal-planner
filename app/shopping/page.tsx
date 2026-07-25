@@ -78,9 +78,28 @@ export default function ShoppingPage() {
   const [newNeedItem, setNewNeedItem] = useState("")
   const [showNeeds, setShowNeeds] = useState(true)
 
+  // Dinner counts for this week + next, so the week toggle can show at a
+  // glance whether each week is planned yet ("5 dinners" / "not planned yet").
+  const [dinnerCounts, setDinnerCounts] = useState<Record<string, number | null>>({})
+
   // Load needs from database
   useEffect(() => {
     fetch("/api/needs").then((r) => r.ok ? r.json() : []).then(setNeedItems)
+  }, [])
+
+  // Load dinner counts for the two toggle weeks
+  useEffect(() => {
+    const nextMonday = addDays(thisMonday, 7)
+    for (const w of [thisMonday, nextMonday]) {
+      fetch(`/api/plan?week=${w}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((plan) => {
+          const count = plan?.meals ? (plan.meals as { recipe_id: number | null; custom_text: string | null }[]).length : 0
+          setDinnerCounts((prev) => ({ ...prev, [w]: count }))
+        })
+        .catch(() => setDinnerCounts((prev) => ({ ...prev, [w]: null })))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function addNeedItem() {
@@ -360,26 +379,51 @@ export default function ShoppingPage() {
         </div>
       </div>
 
-      {/* Week navigation */}
-      <div className="flex items-center gap-2 mb-4">
-        <button onClick={() => { setTailMerged(false); setWeek(addDays(week, -7)) }}
-          className="p-1 text-meal-muted hover:text-meal-charcoal transition-colors" aria-label="Previous week">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-        <span className="text-sm text-meal-muted">{formatWeekRange(week)}</span>
-        <button onClick={() => { setTailMerged(false); setWeek(addDays(week, 7)) }}
-          className="p-1 text-meal-muted hover:text-meal-charcoal transition-colors" aria-label="Next week">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </button>
-        {isFutureWeek && (
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-meal-coral bg-meal-coral/10 px-2 py-0.5 rounded-full">
-            Next week
-          </span>
-        )}
+      {/* Which shop is this? Big, simple toggle. */}
+      <div className="mb-4">
+        <p className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">Shopping for</p>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: "This week", value: thisMonday },
+            { label: "Next week", value: addDays(thisMonday, 7) },
+          ].map((opt) => {
+            const count = dinnerCounts[opt.value]
+            const active = week === opt.value
+            const status =
+              count === undefined || count === null
+                ? ""
+                : count === 0
+                  ? "not planned yet"
+                  : `${count} dinner${count === 1 ? "" : "s"} planned`
+            return (
+              <button
+                key={opt.value}
+                onClick={() => { setTailMerged(false); setWeek(opt.value) }}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-meal-sage text-white"
+                    : "bg-meal-card border border-meal-warm text-meal-muted hover:text-meal-charcoal"
+                }`}
+              >
+                <span className="block">{opt.label}</span>
+                <span className={`block text-[10px] font-normal ${active ? "text-white/70" : "text-meal-muted"}`}>
+                  {formatWeekRange(opt.value)}
+                </span>
+                {status && (
+                  <span
+                    className={`block text-[10px] font-medium mt-0.5 ${
+                      count === 0
+                        ? active ? "text-white/90" : "text-meal-amber"
+                        : active ? "text-white/70" : "text-meal-muted"
+                    }`}
+                  >
+                    {status}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Shopping early for next week? Fold in what's left of this week. */}
@@ -504,12 +548,16 @@ export default function ShoppingPage() {
         <div className="text-center py-12 text-meal-muted">Loading...</div>
       ) : items.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-meal-muted mb-2">No shopping list yet.</p>
-          <p className="text-sm text-meal-muted">
-            {isFutureWeek
-              ? "Next week isn't planned yet — head to Plan, flick to next week and generate dinners, then come back here."
-              : "Plan some meals first, then come back here."}
+          <p className="text-meal-muted mb-3">
+            {isFutureWeek ? "Next week has no dinners planned yet." : "This week has no dinners planned yet."}
           </p>
+          <a
+            href={`/?week=${week}`}
+            className="inline-block px-5 py-2.5 rounded-xl bg-meal-coral text-white text-sm font-medium hover:bg-meal-sageHover transition-colors"
+          >
+            Plan {isFutureWeek ? "next" : "this"} week&apos;s dinners →
+          </a>
+          <p className="text-xs text-meal-muted mt-3">Once dinners are planned, the list fills itself.</p>
         </div>
       ) : (
         <div className="bg-meal-card rounded-xl overflow-hidden shadow-sm">

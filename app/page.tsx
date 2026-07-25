@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DAYS, DAY_LABELS } from "@/types"
 import type { MealSlot, DayOfWeek, MealType, Recipe } from "@/types"
 import { ImagePickerModal } from "@/components/ImagePickerModal"
@@ -128,9 +128,12 @@ const OVERRIDE_CHIP_CLASS: Record<DayOverride, string> = {
   skip: "bg-meal-muted/15 text-meal-muted hover:bg-meal-muted/25",
 }
 
-export default function PlanPage() {
+function PlanPageInner() {
   const router = useRouter()
-  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
+  const searchParams = useSearchParams()
+  const [weekStart, setWeekStart] = useState(
+    () => searchParams.get("week") || getMonday(new Date())
+  )
   const [meals, setMeals] = useState<MealSlot[]>([])
   const [recipes, setRecipes] = useState<Record<number, Recipe>>({})
   const [loading, setLoading] = useState(true)
@@ -1345,5 +1348,14 @@ export default function PlanPage() {
         />
       )}
     </div>
+  )
+}
+
+// useSearchParams requires a Suspense boundary for prerendering.
+export default function PlanPage() {
+  return (
+    <Suspense fallback={null}>
+      <PlanPageInner />
+    </Suspense>
   )
 }
