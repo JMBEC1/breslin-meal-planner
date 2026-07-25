@@ -145,7 +145,9 @@ function PlanPageInner() {
 
   // Dinner generator state
   const [dinnerGenOpen, setDinnerGenOpen] = useState(false)
-  const [dinnerMode, setDinnerMode] = useState<"stored" | "internet" | "mix">("mix")
+  // Library-only: dinners are always chosen from recipes we've added.
+  // (The Mix / Internet modes were removed — we don't suggest new/web recipes.)
+  const dinnerMode = "stored" as const
   const [dinnerResults, setDinnerResults] = useState<DinnerSuggestion[] | null>(null)
   const [generatingDinners, setGeneratingDinners] = useState(false)
   const [inspiration, setInspiration] = useState("")
@@ -928,25 +930,6 @@ function PlanPageInner() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Mode selector */}
-            <div className="flex gap-1 bg-meal-warm rounded-lg p-1 mb-4">
-              {([
-                { value: "stored" as const, label: "Our Recipes" },
-                { value: "mix" as const, label: "Mix" },
-                { value: "internet" as const, label: "Internet" },
-              ]).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => { setDinnerMode(opt.value); setDinnerResults(null); setDinnersSaved(false) }}
-                  className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-                    dinnerMode === opt.value ? "bg-meal-card text-meal-charcoal shadow-sm" : "text-meal-muted"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
             </div>
 
             {/* Inspiration input */}
