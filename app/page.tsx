@@ -138,7 +138,12 @@ function PlanPageInner() {
   const [recipes, setRecipes] = useState<Record<number, Recipe>>({})
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType; addSide?: boolean } | null>(null)
+  const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType; addSide?: boolean; bridge?: boolean } | null>(null)
+  // "Still this week" bridge — when viewing a future week, the remaining days
+  // of the CURRENT week are shown as plannable tiles above the grid, so
+  // "plan tomorrow through Friday" works on one screen even across the
+  // Mon–Sun boundary. bridgeMeals holds the current week's FULL meals array.
+  const [bridgeMeals, setBridgeMeals] = useState<MealSlot[]>([])
   const [allRecipes, setAllRecipes] = useState<Recipe[]>([])
   const [customText, setCustomText] = useState("")
   const [pickerSearch, setPickerSearch] = useState("")
@@ -210,6 +215,61 @@ function PlanPageInner() {
     return meals.find((m) => m.day === day && m.meal_type === mealType)
   }
 
+  // ── "Still this week" bridge (viewing a future week) ─────────────
+  const todayMonday = getMonday(new Date())
+  const isFutureView = weekStart > todayMonday
+  const bridgeDays: DayOfWeek[] = isFutureView
+    ? (DAYS.slice((new Date().getDay() + 6) % 7) as DayOfWeek[])
+    : []
+
+  useEffect(() => {
+    if (!isFutureView) return
+    fetch(`/api/plan?week=${todayMonday}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((plan) => setBridgeMeals(plan?.meals || []))
+      .catch(() => setBridgeMeals([]))
+    if (allRecipes.length === 0) {
+      fetch("/api/recipes").then((r) => (r.ok ? r.json() : [])).then(setAllRecipes)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFutureView, todayMonday])
+
+  function getBridgeSlot(day: DayOfWeek): MealSlot | undefined {
+    return bridgeMeals.find((m) => m.day === day && m.meal_type === "dinner")
+  }
+
+  function bridgeSlotTitle(slot: MealSlot): string {
+    if (slot.custom_text) return slot.custom_text
+    if (slot.recipe_id) {
+      return (
+        allRecipes.find((r) => r.id === slot.recipe_id)?.title ||
+        recipes[slot.recipe_id]?.title ||
+        "Planned"
+      )
+    }
+    return "Planned"
+  }
+
+  async function saveBridgePlan(updated: MealSlot[]) {
+    setBridgeMeals(updated)
+    await fetch("/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ week_start: todayMonday, meals: updated }),
+    })
+  }
+
+  function clearBridgeSlot(day: DayOfWeek) {
+    saveBridgePlan(bridgeMeals.filter((m) => !(m.day === day && m.meal_type === "dinner")))
+  }
+
+  function bridgeDayDate(day: DayOfWeek): string {
+    const idx = DAYS.indexOf(day)
+    const d = new Date(todayMonday + "T00:00:00")
+    d.setDate(d.getDate() + idx)
+    return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" })
+  }
+
   async function savePlan(updated: MealSlot[]) {
     setMeals(updated)
     await fetch("/api/plan", {
@@ -220,6 +280,15 @@ function PlanPageInner() {
   }
 
   function assignRecipe(day: DayOfWeek, mealType: MealType, recipeId: number | null, text: string | null) {
+    if (pickerOpen?.bridge) {
+      // Writing into the CURRENT week's plan from a future-week view.
+      const existing = bridgeMeals.filter((m) => !(m.day === day && m.meal_type === mealType))
+      saveBridgePlan([...existing, { day, meal_type: mealType, recipe_id: recipeId, custom_text: text }])
+      setPickerOpen(null)
+      setCustomText("")
+      setPickerSearch("")
+      return
+    }
     if (pickerOpen?.addSide && recipeId) {
       // Adding a side to an existing slot
       const updated = meals.map((m) => {
@@ -474,8 +543,8 @@ function PlanPageInner() {
     setTakeawayTypes({})
   }
 
-  async function openPicker(day: DayOfWeek, mealType: MealType, addSide?: boolean) {
-    setPickerOpen({ day, meal_type: mealType, addSide })
+  async function openPicker(day: DayOfWeek, mealType: MealType, addSide?: boolean, bridge?: boolean) {
+    setPickerOpen({ day, meal_type: mealType, addSide, bridge })
     if (allRecipes.length === 0) {
       const res = await fetch("/api/recipes")
       if (res.ok) setAllRecipes(await res.json())
@@ -664,6 +733,51 @@ function PlanPageInner() {
         <div className="text-center py-12 text-meal-muted">Loading...</div>
       ) : (
         <>
+          {/* "Still this week" bridge — plan tomorrow etc. without leaving next week's view */}
+          {isFutureView && bridgeDays.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-xs font-semibold text-meal-amber uppercase tracking-wider mb-2">
+                Still this week
+              </h3>
+              <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3">
+                {bridgeDays.map((day) => {
+                  const slot = getBridgeSlot(day)
+                  return (
+                    <div key={day} className="md:min-w-[160px] bg-meal-card border border-meal-warm rounded-xl px-3 py-2.5">
+                      <p className="text-[10px] font-semibold text-meal-muted uppercase tracking-wider mb-1">
+                        {DAY_LABELS[day]} {bridgeDayDate(day)}
+                      </p>
+                      {slot ? (
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 text-sm text-meal-charcoal">{bridgeSlotTitle(slot)}</span>
+                          <button
+                            onClick={() => openPicker(day, "dinner", false, true)}
+                            className="text-[10px] font-medium text-meal-sage hover:underline"
+                          >
+                            swap
+                          </button>
+                          <button
+                            onClick={() => clearBridgeSlot(day)}
+                            className="text-[10px] font-medium text-meal-muted hover:text-red-500"
+                          >
+                            clear
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => openPicker(day, "dinner", false, true)}
+                          className="text-sm text-meal-sage font-medium hover:underline"
+                        >
+                          + Add
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Desktop grid */}
           <div className="hidden md:grid grid-cols-7 gap-3">
             {DAYS.map((day) => (
