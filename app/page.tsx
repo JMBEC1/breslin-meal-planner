@@ -504,20 +504,20 @@ export default function PlanPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setDinnerGenOpen(true)}
-            className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium shadow-glow hover:shadow-glow-lg hover:bg-meal-coral/80 transition-all"
+            className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/80 transition-colors"
           >
             Generate Dinners
           </button>
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium shadow-glow hover:shadow-glow-lg hover:bg-meal-sageHover transition-all disabled:opacity-50 disabled:shadow-none"
+            className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
           >
             {generating ? "Generating..." : "AI Fill All"}
           </button>
           <Link
             href={`/shopping?week=${weekStart}`}
-            className="px-4 py-2 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium shadow-sm hover:shadow-md hover:bg-meal-warm/80 transition-all"
+            className="px-4 py-2 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium hover:bg-meal-warm/80 transition-colors"
           >
             Shopping List
           </Link>
@@ -1150,13 +1150,34 @@ export default function PlanPage() {
               {pickerOpen.addSide ? "Add Side — " : ""}{DAY_LABELS[pickerOpen.day]} {pickerOpen.meal_type}
             </h3>
 
+            {/* Quick picks — takeaway cuisines + eating out (none add to shopping) */}
+            {!pickerOpen.addSide && (
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {TAKEAWAY_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => assignRecipe(pickerOpen.day, pickerOpen.meal_type, null, `Takeaway: ${t}`)}
+                    className="px-2.5 py-1 rounded-full bg-meal-coral/10 text-meal-coral text-xs font-medium hover:bg-meal-coral/25 transition-colors"
+                  >
+                    🥡 {t}
+                  </button>
+                ))}
+                <button
+                  onClick={() => assignRecipe(pickerOpen.day, pickerOpen.meal_type, null, "Eating out")}
+                  className="px-2.5 py-1 rounded-full bg-meal-plum/15 text-meal-plum text-xs font-medium hover:bg-meal-plum/30 transition-colors"
+                >
+                  🍽️ Eating out
+                </button>
+              </div>
+            )}
+
             {/* Custom text */}
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
                 value={customText}
                 onChange={(e) => setCustomText(e.target.value)}
-                placeholder="Custom (e.g. Leftovers, Eating out)"
+                placeholder="Custom (e.g. Nana's for tea)"
                 className="flex-1 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
               />
               <button
@@ -1277,9 +1298,19 @@ export default function PlanPage() {
                                   assignRecipe(pickerOpen.day, pickerOpen.meal_type, r.id, null)
                                   setRecipes((prev) => ({ ...prev, [r.id]: r }))
                                 }}
-                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2 group"
                               >
                                 <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    assignRecipe(pickerOpen.day, pickerOpen.meal_type, null, `Leftovers: ${r.title}`)
+                                  }}
+                                  title="Plan this as leftovers — nothing added to the shopping list"
+                                  className="text-[10px] font-medium text-meal-plum bg-meal-plum/10 px-2 py-0.5 rounded-full hover:bg-meal-plum/25 transition-colors cursor-pointer"
+                                >
+                                  leftovers
+                                </span>
                                 {r.is_gluten_free ? (
                                   <span className="text-[10px] font-semibold text-meal-gf">GF</span>
                                 ) : (

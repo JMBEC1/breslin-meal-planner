@@ -22,9 +22,45 @@ function getMonday(date: Date): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
+function addDays(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number)
+  const date = new Date(y, m - 1, d + n)
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function formatWeekRange(weekStart: string): string {
+  const [y, m, d] = weekStart.split("-").map(Number)
+  const start = new Date(y, m - 1, d)
+  const end = new Date(y, m - 1, d + 6)
+  const fmt = (dt: Date) => `${dt.getDate()} ${dt.toLocaleDateString("en-AU", { month: "long" })}`
+  return `${fmt(start)} — ${fmt(end)}`
+}
+
+const DAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+// Days of the current week from today (inclusive) to Sunday.
+function remainingDaysOfWeek(): string[] {
+  const idx = (new Date().getDay() + 6) % 7 // monday = 0
+  return DAY_ORDER.slice(idx)
+}
+
+// Shop-day-aware default: from Friday onwards you're usually shopping for
+// NEXT week, so default the list to next week. Mon–Thu → current week.
+function defaultWeek(): string {
+  const dow = new Date().getDay() // 0 = Sun
+  const thisMonday = getMonday(new Date())
+  return dow === 5 || dow === 6 || dow === 0 ? addDays(thisMonday, 7) : thisMonday
+}
+
 export default function ShoppingPage() {
   const searchParams = useSearchParams()
-  const week = searchParams.get("week") || getMonday(new Date())
+  const [week, setWeek] = useState(() => searchParams.get("week") || defaultWeek())
+  const thisMonday = getMonday(new Date())
+  const isFutureWeek = week > thisMonday
+  const [tailMerged, setTailMerged] = useState(false)
 
   const [items, setItems] = useState<ShoppingItem[]>([])
   const [planId, setPlanId] = useState<number | null>(null)
@@ -291,7 +327,7 @@ export default function ShoppingPage() {
       </div>
 
       {/* ── Shopping List ───────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <div>
           <h1 className="text-2xl font-bold text-meal-charcoal">Shopping List</h1>
           <p className="text-sm text-meal-muted mt-0.5">{uncheckedCount} items remaining</p>
@@ -316,13 +352,55 @@ export default function ShoppingPage() {
           </button>
           {items.length > 0 && (
             <button onClick={clearShoppingList}
-              className="px-3 py-1.5 rounded-lg bg-meal-card border border-meal-warm text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-meal-card border border-meal-warm text-red-500 text-sm font-medium hover:bg-red-500/10 transition-colors"
               title="Clear all items from this week's list">
               Clear
             </button>
           )}
         </div>
       </div>
+
+      {/* Week navigation */}
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={() => { setTailMerged(false); setWeek(addDays(week, -7)) }}
+          className="p-1 text-meal-muted hover:text-meal-charcoal transition-colors" aria-label="Previous week">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+        <span className="text-sm text-meal-muted">{formatWeekRange(week)}</span>
+        <button onClick={() => { setTailMerged(false); setWeek(addDays(week, 7)) }}
+          className="p-1 text-meal-muted hover:text-meal-charcoal transition-colors" aria-label="Next week">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+        {isFutureWeek && (
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-meal-coral bg-meal-coral/10 px-2 py-0.5 rounded-full">
+            Next week
+          </span>
+        )}
+      </div>
+
+      {/* Shopping early for next week? Fold in what's left of this week. */}
+      {isFutureWeek && planId && !loading && (
+        <button
+          onClick={async () => {
+            setLoading(true)
+            const days = remainingDaysOfWeek().join(",")
+            const res = await fetch(`/api/shopping?week=${week}&refresh=true&tailWeek=${thisMonday}&tailDays=${days}`)
+            const data = await res.json()
+            setItems(data.items || [])
+            setPlanId(data.plan_id || null)
+            setTailMerged(true)
+            setLoading(false)
+          }}
+          disabled={tailMerged}
+          className="mb-4 w-full py-2.5 rounded-lg bg-meal-card border border-meal-warm text-sm font-medium text-meal-charcoal hover:border-meal-muted transition-colors disabled:opacity-60"
+        >
+          {tailMerged ? "✓ Includes the rest of this week's dinners" : "+ Add the rest of this week's dinners too"}
+        </button>
+      )}
 
       {/* Staples panel — appears directly under the Shopping List header when toggled */}
       {showStaples && (
@@ -427,7 +505,11 @@ export default function ShoppingPage() {
       ) : items.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-meal-muted mb-2">No shopping list yet.</p>
-          <p className="text-sm text-meal-muted">Plan some meals first, then come back here.</p>
+          <p className="text-sm text-meal-muted">
+            {isFutureWeek
+              ? "Next week isn't planned yet — head to Plan, flick to next week and generate dinners, then come back here."
+              : "Plan some meals first, then come back here."}
+          </p>
         </div>
       ) : (
         <div className="bg-meal-card rounded-xl overflow-hidden shadow-sm">

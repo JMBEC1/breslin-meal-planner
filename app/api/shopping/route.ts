@@ -5,9 +5,12 @@ import type { Ingredient, MealSlot } from "@/types"
 
 export const dynamic = "force-dynamic"
 
-async function generateList(plan: { id: number; meals: MealSlot[]; updated_at: string }) {
+async function generateList(
+  plan: { id: number; meals: MealSlot[]; updated_at: string },
+  extraMeals: MealSlot[] = []
+) {
   const allIds: number[] = []
-  for (const m of plan.meals) {
+  for (const m of [...plan.meals, ...extraMeals]) {
     if (m.recipe_id) allIds.push(m.recipe_id)
     if (m.side_ids) allIds.push(...m.side_ids)
   }
@@ -52,6 +55,19 @@ export async function GET(req: NextRequest) {
   const refresh = searchParams.get("refresh") === "true"
   if (!week) return NextResponse.json({ error: "week param required" }, { status: 400 })
 
+  // Optional "tail": also shop for the remaining dinners of another week
+  // (e.g. shopping Saturday for next week — fold in this week's sat/sun).
+  // tailWeek = that week's week_start, tailDays = comma list of day names.
+  const tailWeek = searchParams.get("tailWeek")
+  const tailDays = (searchParams.get("tailDays") || "").split(",").filter(Boolean)
+  let extraMeals: MealSlot[] = []
+  if (tailWeek && tailDays.length > 0) {
+    const tailPlan = await getMealPlan(tailWeek)
+    if (tailPlan) {
+      extraMeals = (tailPlan.meals as MealSlot[]).filter((m) => tailDays.includes(m.day))
+    }
+  }
+
   const plan = await getMealPlan(week)
   if (!plan) return NextResponse.json({ items: [], plan_id: null })
 
@@ -66,7 +82,7 @@ export async function GET(req: NextRequest) {
       oldItems.filter((i: { checked: boolean }) => i.checked).map((i: { name: string }) => i.name.toLowerCase())
     )
 
-    const result = await generateList(plan)
+    const result = await generateList(plan, extraMeals)
 
     // Restore checked state on regenerated items
     for (const item of result.items || []) {
@@ -118,7 +134,7 @@ export async function GET(req: NextRequest) {
   }
 
   // No existing list — generate fresh
-  const result = await generateList(plan)
+  const result = await generateList(plan, extraMeals)
   return NextResponse.json(result)
 }
 
