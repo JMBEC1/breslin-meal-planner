@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Glow colour behind the primary buttons (shadow-glow / shadow-glow-lg).
+     One-line swap: tomato "213 82 47" · amber "201 160 60" · silver "240 240 236".
+     Intensity lives in tailwind.config.ts (the /0.40 and /0.60 alphas). */
+  --glow-rgb: 213 82 47;
+}
+
 body {
   background-color: #121211;
   color: #F0F0EC;

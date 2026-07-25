@@ -504,20 +504,20 @@ export default function PlanPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setDinnerGenOpen(true)}
-            className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/80 transition-colors"
+            className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium shadow-glow hover:shadow-glow-lg hover:bg-meal-coral/80 transition-all"
           >
             Generate Dinners
           </button>
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium shadow-glow hover:shadow-glow-lg hover:bg-meal-sageHover transition-all disabled:opacity-50 disabled:shadow-none"
           >
             {generating ? "Generating..." : "AI Fill All"}
           </button>
           <Link
             href={`/shopping?week=${weekStart}`}
-            className="px-4 py-2 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium hover:bg-meal-warm/80 transition-colors"
+            className="px-4 py-2 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium shadow-sm hover:shadow-md hover:bg-meal-warm/80 transition-all"
           >
             Shopping List
           </Link>
