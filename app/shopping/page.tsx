@@ -207,12 +207,8 @@ export default function ShoppingPage() {
 
   const regularItems: (ShoppingItem & { _index: number })[] = items.map((item, i) => ({ ...item, _index: i }))
 
-  const grouped = regularItems.reduce<Record<string, (ShoppingItem & { _index: number })[]>>((acc, item) => {
-    const aisle = item.aisle || "other"
-    if (!acc[aisle]) acc[aisle] = []
-    acc[aisle].push(item)
-    return acc
-  }, {})
+  // One flat list, A–Z — easier to scan than aisle groups.
+  const sortedItems = [...regularItems].sort((a, b) => a.name.localeCompare(b.name))
 
   const uncheckedCount = regularItems.filter((i) => !i.checked).length
 
@@ -238,7 +234,7 @@ export default function ShoppingPage() {
         </button>
 
         {showNeeds && (
-          <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="bg-meal-card rounded-xl p-4 shadow-sm">
             <p className="text-xs text-meal-muted mb-3">
               Ran out of something? Add it here — syncs across all devices.
             </p>
@@ -320,7 +316,7 @@ export default function ShoppingPage() {
           </button>
           {items.length > 0 && (
             <button onClick={clearShoppingList}
-              className="px-3 py-1.5 rounded-lg bg-white border border-meal-warm text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-meal-card border border-meal-warm text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
               title="Clear all items from this week's list">
               Clear
             </button>
@@ -330,7 +326,7 @@ export default function ShoppingPage() {
 
       {/* Staples panel — appears directly under the Shopping List header when toggled */}
       {showStaples && (
-        <div className="mb-4 bg-white rounded-xl p-5 shadow-sm">
+        <div className="mb-4 bg-meal-card rounded-xl p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-meal-charcoal mb-1">Your Staples</h2>
           <p className="text-sm text-meal-muted mb-4">
             Basics you always need (bread, milk, GF bread). Tap <span className="font-medium">+ List</span> when you&apos;re running out to add to this week&apos;s shopping.
@@ -420,7 +416,7 @@ export default function ShoppingPage() {
           <input type="text" value={newItem} onChange={(e) => setNewItem(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
             placeholder="Add item..."
-            className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
+            className="flex-1 px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
           <button onClick={addCustomItem} disabled={!newItem.trim()}
             className="px-4 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50">Add</button>
         </div>
@@ -434,43 +430,34 @@ export default function ShoppingPage() {
           <p className="text-sm text-meal-muted">Plan some meals first, then come back here.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([aisle, aisleItems]) => (
-            <div key={aisle}>
-              <h2 className="text-xs font-semibold text-meal-muted uppercase tracking-wider mb-2">
-                {AISLE_LABELS[aisle as AisleCategory] || aisle}
-              </h2>
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                {aisleItems.map((item) => (
-                  <div key={item._index} className="border-b border-meal-cream last:border-0">
-                    <button
-                      onClick={() => toggleItem(item._index)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-meal-cream/50 ${
-                        item.checked ? "opacity-50" : ""
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                        item.checked ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
-                      }`}>
-                        {item.checked && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className={`flex-1 text-sm ${item.checked ? "line-through text-meal-muted" : "text-meal-charcoal"}`}>
-                        {item.name}
-                        {item.from_recipe_ids.length > 1 && (
-                          <span className="ml-2 text-[11px] font-medium text-meal-sage whitespace-nowrap">
-                            ×{item.from_recipe_ids.length} recipes
-                          </span>
-                        )}
-                      </span>
-                      {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
-                    </button>
-                  </div>
-                ))}
-              </div>
+        <div className="bg-meal-card rounded-xl overflow-hidden shadow-sm">
+          {sortedItems.map((item) => (
+            <div key={item._index} className="border-b border-meal-cream last:border-0">
+              <button
+                onClick={() => toggleItem(item._index)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-meal-cream/50 ${
+                  item.checked ? "opacity-50" : ""
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                  item.checked ? "bg-meal-sage border-meal-sage" : "border-meal-warm"
+                }`}>
+                  {item.checked && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                </div>
+                <span className={`flex-1 text-sm ${item.checked ? "line-through text-meal-muted" : "text-meal-charcoal"}`}>
+                  {item.name}
+                  {item.from_recipe_ids.length > 1 && (
+                    <span className="ml-2 text-[11px] font-medium text-meal-sage whitespace-nowrap">
+                      × {item.from_recipe_ids.length} meals
+                    </span>
+                  )}
+                </span>
+                {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
+              </button>
             </div>
           ))}
         </div>
@@ -485,7 +472,7 @@ export default function ShoppingPage() {
               const text = unchecked.map((i) => i.name).join("\n")
               navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
             }}
-            className="w-full py-3 rounded-xl bg-white shadow-sm text-sm font-medium text-meal-charcoal hover:shadow-md transition-shadow flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-meal-card shadow-sm text-sm font-medium text-meal-charcoal hover:shadow-md transition-shadow flex items-center justify-center gap-2"
           >
             {copied ? (
               <><svg className="w-5 h-5 text-meal-sage" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>Copied!</>

@@ -40,7 +40,7 @@ export function ImagePickerModal({ recipe, onSaved, onClose }: Props) {
       onClick={close}
     >
       <div
-        className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col"
+        className="bg-meal-card rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 pb-3 border-b border-meal-cream">

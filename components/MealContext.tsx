@@ -44,7 +44,7 @@ function InlineRecipe({ recipe }: { recipe: Recipe }) {
 
       {/* Ingredients */}
       {recipe.ingredients && recipe.ingredients.length > 0 && (
-        <div className="bg-white rounded-xl p-5 mb-4 shadow-sm">
+        <div className="bg-meal-card rounded-xl p-5 mb-4 shadow-sm">
           <h4 className="text-base font-semibold text-meal-charcoal mb-3">Ingredients</h4>
           <ul className="space-y-2">
             {recipe.ingredients.map((ing, i) => (
@@ -71,7 +71,7 @@ function InlineRecipe({ recipe }: { recipe: Recipe }) {
 
       {/* Instructions */}
       {recipe.instructions && (
-        <div className="bg-white rounded-xl p-5 mb-4 shadow-sm">
+        <div className="bg-meal-card rounded-xl p-5 mb-4 shadow-sm">
           <h4 className="text-base font-semibold text-meal-charcoal mb-3">Instructions</h4>
           <ol className="space-y-3">
             {(recipe.instructions.match(/\d{1,3}\.\s[^]*?(?=\d{1,3}\.\s|$)/g) || [recipe.instructions])

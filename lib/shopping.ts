@@ -50,6 +50,52 @@ function normaliseKey(name: string): string {
   return name.toLowerCase().replace(/[^a-z]/g, "_").replace(/_+/g, "_")
 }
 
+// Words that describe an amount rather than the ingredient itself.
+const MEASURE_WORDS = new Set([
+  "kg", "kgs", "kilo", "kilos", "kilogram", "kilograms",
+  "g", "gs", "gram", "grams", "mg",
+  "l", "litre", "litres", "liter", "liters", "ml", "mls",
+  "cup", "cups", "tbsp", "tbs", "tablespoon", "tablespoons",
+  "tsp", "teaspoon", "teaspoons",
+  "bunch", "bunches", "can", "cans", "tin", "tins", "jar", "jars",
+  "packet", "packets", "pack", "packs", "punnet", "punnets",
+  "bag", "bags", "box", "boxes", "block", "blocks", "sheet", "sheets",
+  "slice", "slices", "piece", "pieces", "clove", "cloves", "sprig", "sprigs",
+  "handful", "handfuls", "pinch", "dash", "knob", "rasher", "rashers",
+  "fillet", "fillets", "x", "of", "large", "small", "medium", "about", "approx",
+])
+
+// "1kg chicken thighs" / "2 x 400g tinned tomatoes" / "500 g chicken thigh"
+// → "chicken thighs" / "tinned tomatoes" / "chicken thigh".
+// Strips leading quantity/measure tokens so the same ingredient dedupes
+// across recipes regardless of amounts. We never show amounts anyway (§ see
+// aggregateIngredients) — you just need to know WHAT to buy.
+export function cleanIngredientName(raw: string): string {
+  const tokens = raw.trim().split(/\s+/)
+  let i = 0
+  while (i < tokens.length - 1) {
+    // Peel a leading token if it's numeric ("2", "1.5", "1/2", "400g", "2x")
+    // or a measure word ("kg", "cans", "of", "x"…).
+    const t = tokens[i].toLowerCase().replace(/[().,]/g, "")
+    const isNumericish = /^[\d/.,-]+$/.test(t) || /^[\d/.,-]+(kg|g|ml|l|x)$/.test(t)
+    if (isNumericish || MEASURE_WORDS.has(t)) { i++; continue }
+    break
+  }
+  const cleaned = tokens.slice(i).join(" ").trim()
+  const result = cleaned || raw.trim()
+  return result.charAt(0).toUpperCase() + result.slice(1)
+}
+
+// Key used for deduping: cleaned, lowercased, with a light plural fold so
+// "chicken thighs" and "chicken thigh" collapse together.
+function dedupeKey(name: string): string {
+  let key = normaliseKey(cleanIngredientName(name))
+  if (key.length > 4 && key.endsWith("s") && !key.endsWith("ss")) {
+    key = key.slice(0, -1)
+  }
+  return key
+}
+
 export function categoriseIngredient(name: string): AisleCategory {
   const key = normaliseKey(name)
   // Direct match
@@ -72,7 +118,8 @@ export function aggregateIngredients(
   const map = new Map<string, ShoppingItem>()
 
   for (const { ingredient, recipeId } of allIngredients) {
-    const key = normaliseKey(ingredient.name)
+    const cleanName = cleanIngredientName(ingredient.name)
+    const key = dedupeKey(ingredient.name)
     const existing = map.get(key)
 
     if (existing) {
@@ -81,10 +128,10 @@ export function aggregateIngredients(
       }
     } else {
       map.set(key, {
-        name: ingredient.name,
+        name: cleanName,
         quantity: "",
         unit: "",
-        aisle: ingredient.aisle || categoriseIngredient(ingredient.name),
+        aisle: ingredient.aisle || categoriseIngredient(cleanName),
         checked: false,
         from_recipe_ids: [recipeId],
         is_staple: false,
@@ -92,5 +139,5 @@ export function aggregateIngredients(
     }
   }
 
-  return Array.from(map.values())
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
 }

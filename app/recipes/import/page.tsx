@@ -94,7 +94,7 @@ export default function ImportRecipePage() {
         <button
           onClick={() => { setTab("url"); setPreview(null); setError("") }}
           className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-            tab === "url" ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"
+            tab === "url" ? "bg-meal-card text-meal-charcoal shadow-sm" : "text-meal-muted"
           }`}
         >
           From URL
@@ -102,7 +102,7 @@ export default function ImportRecipePage() {
         <button
           onClick={() => { setTab("image"); setPreview(null); setError("") }}
           className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-            tab === "image" ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"
+            tab === "image" ? "bg-meal-card text-meal-charcoal shadow-sm" : "text-meal-muted"
           }`}
         >
           From Image
@@ -119,7 +119,7 @@ export default function ImportRecipePage() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://www.example.com/recipe/..."
-              className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+              className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
               required
             />
           </div>
@@ -157,7 +157,7 @@ export default function ImportRecipePage() {
 
       {/* Preview */}
       {preview && (
-        <div className="mt-6 bg-white rounded-xl p-5 shadow-sm">
+        <div className="mt-6 bg-meal-card rounded-xl p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-meal-charcoal mb-4">Preview</h2>
 
           <div className="space-y-3 text-sm">

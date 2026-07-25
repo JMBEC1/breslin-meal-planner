@@ -71,7 +71,7 @@ export function RecipeRating({ recipeId }: RecipeRatingProps) {
   if (loading) return null
 
   return (
-    <div className="bg-white rounded-xl p-5 mb-6 shadow-sm">
+    <div className="bg-meal-card rounded-xl p-5 mb-6 shadow-sm">
       <h2 className="text-lg font-semibold text-meal-charcoal mb-4">Ratings</h2>
 
       {/* Ease of cooking */}

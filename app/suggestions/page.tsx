@@ -70,7 +70,7 @@ export default function SuggestionsPage() {
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit(message)}
           placeholder="Ask me anything about meals..."
-          className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+          className="flex-1 px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
           disabled={loading}
         />
         <button
@@ -84,7 +84,7 @@ export default function SuggestionsPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="bg-white rounded-xl p-6 shadow-sm text-center">
+        <div className="bg-meal-card rounded-xl p-6 shadow-sm text-center">
           <div className="inline-block w-6 h-6 border-2 border-meal-sage border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-meal-muted mt-3">Cooking up some ideas...</p>
         </div>
@@ -92,7 +92,7 @@ export default function SuggestionsPage() {
 
       {/* Response */}
       {response && !loading && (
-        <div className="bg-white rounded-xl p-5 shadow-sm">
+        <div className="bg-meal-card rounded-xl p-5 shadow-sm">
           <div className="prose prose-sm max-w-none text-meal-charcoal whitespace-pre-line">
             {response.split("\n").map((line, i) => {
               if (line.startsWith("**") && line.includes("**")) {

@@ -160,7 +160,7 @@ export default function TidyTitlesPage() {
             </label>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-meal-card rounded-xl shadow-sm overflow-hidden">
             {visibleRows.map((r) => (
               <div key={r.id} className={`flex items-start gap-3 px-4 py-3 border-b border-meal-cream last:border-0 ${selected.has(r.id) ? "bg-meal-sage/5" : ""}`}>
                 <input
@@ -181,7 +181,7 @@ export default function TidyTitlesPage() {
                       type="text"
                       value={r.suggested}
                       onChange={(e) => updateSuggested(r.id, e.target.value)}
-                      className="flex-1 px-2 py-1 text-sm border border-meal-warm rounded bg-meal-cream/50 focus:outline-none focus:ring-1 focus:ring-meal-sage focus:bg-white"
+                      className="flex-1 px-2 py-1 text-sm border border-meal-warm rounded bg-meal-cream/50 focus:outline-none focus:ring-1 focus:ring-meal-sage focus:bg-meal-card"
                     />
                   </div>
                 </div>

@@ -83,7 +83,7 @@ export default function NewRecipePage() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+            className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
             placeholder="e.g. GF Chicken Stir Fry"
             required
           />
@@ -96,7 +96,7 @@ export default function NewRecipePage() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as RecipeCategory)}
-              className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+              className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
             >
               {Object.entries(CATEGORY_LABELS).map(([val, label]) => (
                 <option key={val} value={val}>{label}</option>
@@ -121,19 +121,19 @@ export default function NewRecipePage() {
           <div>
             <label className="block text-sm font-medium text-meal-charcoal mb-1">Prep (min)</label>
             <input type="number" value={prepTime} onChange={(e) => setPrepTime(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+              className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
               placeholder="15" />
           </div>
           <div>
             <label className="block text-sm font-medium text-meal-charcoal mb-1">Cook (min)</label>
             <input type="number" value={cookTime} onChange={(e) => setCookTime(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+              className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
               placeholder="30" />
           </div>
           <div>
             <label className="block text-sm font-medium text-meal-charcoal mb-1">Servings</label>
             <input type="number" value={servings} onChange={(e) => setServings(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+              className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
               placeholder="4" />
           </div>
         </div>
@@ -142,7 +142,7 @@ export default function NewRecipePage() {
         <div>
           <label className="block text-sm font-medium text-meal-charcoal mb-1">Description</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+            className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
             rows={2} placeholder="A quick and tasty weeknight dinner..." />
         </div>
 
@@ -155,22 +155,22 @@ export default function NewRecipePage() {
                 <input
                   type="text" placeholder="Qty" value={ing.quantity}
                   onChange={(e) => updateIngredient(i, "quantity", e.target.value)}
-                  className="w-16 px-2 py-2 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+                  className="w-16 px-2 py-2 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
                 />
                 <input
                   type="text" placeholder="Unit" value={ing.unit}
                   onChange={(e) => updateIngredient(i, "unit", e.target.value)}
-                  className="w-16 px-2 py-2 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+                  className="w-16 px-2 py-2 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
                 />
                 <input
                   type="text" placeholder="Ingredient name" value={ing.name}
                   onChange={(e) => updateIngredient(i, "name", e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+                  className="flex-1 px-3 py-2 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
                 />
                 <select
                   value={ing.aisle}
                   onChange={(e) => updateIngredient(i, "aisle", e.target.value)}
-                  className="w-28 px-2 py-2 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
+                  className="w-28 px-2 py-2 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
                 >
                   {Object.entries(AISLE_LABELS).map(([val, label]) => (
                     <option key={val} value={val}>{label}</option>
@@ -197,7 +197,7 @@ export default function NewRecipePage() {
         <div>
           <label className="block text-sm font-medium text-meal-charcoal mb-1">Instructions</label>
           <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+            className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
             rows={6} placeholder="1. Heat oil in a pan...&#10;2. Add chicken and cook..." />
         </div>
 
@@ -205,7 +205,7 @@ export default function NewRecipePage() {
         <div>
           <label className="block text-sm font-medium text-meal-charcoal mb-1">Tags (comma-separated)</label>
           <input type="text" value={tags} onChange={(e) => setTags(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+            className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
             placeholder="quick, kid-friendly, asian" />
         </div>
 
@@ -213,7 +213,7 @@ export default function NewRecipePage() {
         <div>
           <label className="block text-sm font-medium text-meal-charcoal mb-1">Source URL (optional)</label>
           <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+            className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
             placeholder="https://..." />
         </div>
 
@@ -221,7 +221,7 @@ export default function NewRecipePage() {
         <div>
           <label className="block text-sm font-medium text-meal-charcoal mb-1">Notes (optional)</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
+            className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage"
             rows={2} placeholder="Kids love this! Double the sauce next time." />
         </div>
 
