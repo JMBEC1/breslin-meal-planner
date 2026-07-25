@@ -64,6 +64,11 @@ export function categoriseIngredient(name: string): AisleCategory {
 export function aggregateIngredients(
   allIngredients: { ingredient: Ingredient; recipeId: number }[]
 ): ShoppingItem[] {
+  // We deliberately DON'T sum quantities. Recipe amounts (1.2kg chicken thigh,
+  // 0.6kg…) aren't reliable or useful for a shopping run — you just need to know
+  // WHAT to buy. So we dedupe by ingredient name and record which recipes call
+  // for it; the UI shows the ingredient plus "×N recipes" when more than one
+  // dish needs it, instead of a fabricated total.
   const map = new Map<string, ShoppingItem>()
 
   for (const { ingredient, recipeId } of allIngredients) {
@@ -71,20 +76,14 @@ export function aggregateIngredients(
     const existing = map.get(key)
 
     if (existing) {
-      // Try to combine quantities
-      if (existing.unit === ingredient.unit && !isNaN(Number(existing.quantity)) && !isNaN(Number(ingredient.quantity))) {
-        existing.quantity = String(Number(existing.quantity) + Number(ingredient.quantity))
-      } else if (ingredient.quantity) {
-        existing.quantity += ` + ${ingredient.quantity}${ingredient.unit ? " " + ingredient.unit : ""}`
-      }
       if (!existing.from_recipe_ids.includes(recipeId)) {
         existing.from_recipe_ids.push(recipeId)
       }
     } else {
       map.set(key, {
         name: ingredient.name,
-        quantity: ingredient.quantity || "",
-        unit: ingredient.unit || "",
+        quantity: "",
+        unit: "",
         aisle: ingredient.aisle || categoriseIngredient(ingredient.name),
         checked: false,
         from_recipe_ids: [recipeId],

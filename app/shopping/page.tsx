@@ -35,8 +35,6 @@ export default function ShoppingPage() {
   const [newStapleName, setNewStapleName] = useState("")
   const [newStapleAisle, setNewStapleAisle] = useState<AisleCategory>("other")
   const [newItem, setNewItem] = useState("")
-  const [newItemQty, setNewItemQty] = useState("")
-  const [newItemUnit, setNewItemUnit] = useState("")
   const [copied, setCopied] = useState(false)
 
   // Things We Need — now database-backed
@@ -129,14 +127,12 @@ export default function ShoppingPage() {
   async function addCustomItem() {
     if (!newItem.trim() || !planId) return
     const item: ShoppingItem = {
-      name: newItem.trim(), quantity: newItemQty || "1", unit: newItemUnit, aisle: "other",
+      name: newItem.trim(), quantity: "", unit: "", aisle: "other",
       checked: false, from_recipe_ids: [], is_staple: false,
     }
     const updated = [...items, item]
     setItems(updated)
     setNewItem("")
-    setNewItemQty("")
-    setNewItemUnit("")
     await fetch("/api/shopping", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -425,14 +421,6 @@ export default function ShoppingPage() {
             onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
             placeholder="Add item..."
             className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm" />
-          <input type="text" value={newItemQty} onChange={(e) => setNewItemQty(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
-            placeholder="Qty"
-            className="w-14 px-2 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm text-center" />
-          <input type="text" value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCustomItem()}
-            placeholder="Unit"
-            className="w-14 px-2 py-2.5 rounded-lg bg-white border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm text-center" />
           <button onClick={addCustomItem} disabled={!newItem.trim()}
             className="px-4 py-2.5 rounded-lg bg-meal-sage text-white text-sm font-medium disabled:opacity-50">Add</button>
         </div>
@@ -471,9 +459,12 @@ export default function ShoppingPage() {
                         )}
                       </div>
                       <span className={`flex-1 text-sm ${item.checked ? "line-through text-meal-muted" : "text-meal-charcoal"}`}>
-                        {item.quantity && <span className="font-medium">{item.quantity}</span>}
-                        {item.unit && <span className="font-medium"> {item.unit}</span>}
-                        {" "}{item.name}
+                        {item.name}
+                        {item.from_recipe_ids.length > 1 && (
+                          <span className="ml-2 text-[11px] font-medium text-meal-sage whitespace-nowrap">
+                            ×{item.from_recipe_ids.length} recipes
+                          </span>
+                        )}
                       </span>
                       {item.is_staple && <span className="text-[10px] text-meal-muted font-medium">STAPLE</span>}
                     </button>
@@ -488,39 +479,20 @@ export default function ShoppingPage() {
       {/* Copy list + store links */}
       {items.length > 0 && (
         <div className="mt-6 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => {
-                const unchecked = regularItems.filter((i) => !i.checked)
-                const text = unchecked.map((i) => i.name).join("\n")
-                navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-              }}
-              className="py-3 rounded-xl bg-white shadow-sm text-sm font-medium text-meal-charcoal hover:shadow-md transition-shadow flex items-center justify-center gap-2"
-            >
-              {copied ? (
-                <><svg className="w-5 h-5 text-meal-sage" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>Copied!</>
-              ) : (
-                <><svg className="w-5 h-5 text-meal-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>Copy Names</>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                const unchecked = regularItems.filter((i) => !i.checked)
-                const text = unchecked.map((i) => {
-                  const qty = i.quantity ? `${i.quantity}${i.unit ? " " + i.unit : ""} ` : ""
-                  return `${qty}${i.name}`
-                }).join("\n")
-                navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-              }}
-              className="py-3 rounded-xl bg-white shadow-sm text-sm font-medium text-meal-charcoal hover:shadow-md transition-shadow flex items-center justify-center gap-2"
-            >
-              {copied ? (
-                <><svg className="w-5 h-5 text-meal-sage" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>Copied!</>
-              ) : (
-                <><svg className="w-5 h-5 text-meal-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>Copy with Qty</>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              const unchecked = regularItems.filter((i) => !i.checked)
+              const text = unchecked.map((i) => i.name).join("\n")
+              navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+            }}
+            className="w-full py-3 rounded-xl bg-white shadow-sm text-sm font-medium text-meal-charcoal hover:shadow-md transition-shadow flex items-center justify-center gap-2"
+          >
+            {copied ? (
+              <><svg className="w-5 h-5 text-meal-sage" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>Copied!</>
+            ) : (
+              <><svg className="w-5 h-5 text-meal-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>Copy list</>
+            )}
+          </button>
           <div className="grid grid-cols-2 gap-3">
             <a href="https://www.woolworths.com.au/shop/lists" target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#125B33] text-white text-sm font-medium hover:bg-[#0e4a29] transition-colors shadow-sm">
