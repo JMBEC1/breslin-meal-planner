@@ -559,7 +559,7 @@ export default function PlanPage() {
           const heroImg = recipe?.image_url || takeawayImg
           return (
             <div
-              className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-white cursor-pointer hover:shadow-md transition-shadow" : "bg-meal-warm/50"}`}
+              className={`rounded-xl overflow-hidden shadow-sm ${hasContent ? "bg-meal-card cursor-pointer hover:shadow-md transition-shadow" : "bg-meal-warm/50"}`}
               onClick={() => {
                 if (recipe) router.push(`/recipes/${recipe.id}`)
                 else openPicker(day, mealType)
@@ -573,7 +573,7 @@ export default function PlanPage() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <svg className="w-10 h-10 text-white/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75l-1.5.75a3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0L3 16.5m15-3.379a48.474 48.474 0 00-6-.371c-2.032 0-4.034.126-6 .371m12 0c.39.049.777.102 1.163.16 1.07.16 1.837 1.094 1.837 2.175v5.169c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 013 20.625v-5.17c0-1.08.768-2.014 1.837-2.174A47.78 47.78 0 016 13.12M12.265 3.11a.375.375 0 11-.53 0L12 2.845l.265.265zm-3 0a.375.375 0 11-.53 0L9 2.845l.265.265zm6 0a.375.375 0 11-.53 0L15 2.845l.265.265z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-3.5 0a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0Z" />
                     </svg>
                   </div>
                 )}
@@ -587,18 +587,18 @@ export default function PlanPage() {
                   <div className="absolute bottom-2 right-2 flex gap-1">
                     {recipe && (
                       <button
-                        className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
+                        className="bg-black/55 hover:bg-black/70 rounded-full p-1.5 shadow transition-colors"
                         onClick={(e) => { e.stopPropagation(); setImagePickerRecipe(recipe) }}
                         title="Change image"
                       >
-                        <svg className="w-3.5 h-3.5 text-meal-charcoal" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
                         </svg>
                       </button>
                     )}
                     <button
-                      className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
+                      className="bg-black/55 hover:bg-black/70 rounded-full p-1.5 shadow transition-colors"
                       onClick={(e) => { e.stopPropagation(); openPicker(day, mealType, true) }}
                       title="Add side"
                     >
@@ -607,11 +607,11 @@ export default function PlanPage() {
                       </svg>
                     </button>
                     <button
-                      className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow transition-colors"
+                      className="bg-black/55 hover:bg-black/70 rounded-full p-1.5 shadow transition-colors"
                       onClick={(e) => { e.stopPropagation(); openPicker(day, mealType) }}
                       title="Swap meal"
                     >
-                      <svg className="w-3.5 h-3.5 text-meal-charcoal" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
                       </svg>
                     </button>
@@ -675,7 +675,7 @@ export default function PlanPage() {
                       key={mealType}
                       className={`rounded-lg overflow-hidden text-sm cursor-pointer transition-all ${
                         slot?.recipe_id || slot?.custom_text
-                          ? "bg-white shadow-sm hover:shadow-md"
+                          ? "bg-meal-card shadow-sm hover:shadow-md"
                           : "bg-meal-warm/50 hover:bg-meal-warm border-2 border-dashed border-meal-warm min-h-[80px] p-3"
                       }`}
                       onClick={() => {
@@ -755,7 +755,7 @@ export default function PlanPage() {
           {/* Mobile vertical list */}
           <div className="md:hidden space-y-4">
             {DAYS.map((day) => (
-              <div key={day} className="bg-white rounded-xl p-4 shadow-sm">
+              <div key={day} className="bg-meal-card rounded-xl p-4 shadow-sm">
                 <h3 className="text-sm font-semibold text-meal-charcoal mb-3">{DAY_LABELS[day]}</h3>
                 <div className="space-y-2">
                   {(["dinner"] as MealType[]).map((mealType) => {
@@ -829,7 +829,7 @@ export default function PlanPage() {
       {dinnerGenOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
           onClick={closeDinnerGen}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[90vh] overflow-auto p-5"
+          <div className="bg-meal-card rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[90vh] overflow-auto p-5"
             onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-meal-charcoal mb-2">Generate Dinners</h3>
             <p className="text-sm text-meal-muted mb-4">
@@ -914,7 +914,7 @@ export default function PlanPage() {
                             className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
                               takeawayTypes[day] === t
                                 ? "bg-meal-coral text-white"
-                                : "bg-white text-meal-charcoal hover:bg-meal-coral/15"
+                                : "bg-meal-card text-meal-charcoal hover:bg-meal-coral/15"
                             }`}
                           >
                             {t}
@@ -938,7 +938,7 @@ export default function PlanPage() {
                   key={opt.value}
                   onClick={() => { setDinnerMode(opt.value); setDinnerResults(null); setDinnersSaved(false) }}
                   className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-                    dinnerMode === opt.value ? "bg-white text-meal-charcoal shadow-sm" : "text-meal-muted"
+                    dinnerMode === opt.value ? "bg-meal-card text-meal-charcoal shadow-sm" : "text-meal-muted"
                   }`}
                 >
                   {opt.label}
@@ -1024,7 +1024,7 @@ export default function PlanPage() {
                             {d.isCustomSlot ? (
                               <span className="text-[10px] font-semibold text-meal-plum uppercase tracking-wider">Manual pick</span>
                             ) : d.is_gluten_free ? (
-                              <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                              <span className="text-[10px] font-semibold text-meal-gf">GF</span>
                             ) : (
                               <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
                             )}
@@ -1042,7 +1042,7 @@ export default function PlanPage() {
                             <button
                               onClick={() => handleSwapDinner(i)}
                               disabled={swappingIndex === i || d.isCustomSlot}
-                              className="p-1.5 rounded-lg text-meal-muted hover:text-meal-coral hover:bg-white transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-meal-muted"
+                              className="p-1.5 rounded-lg text-meal-muted hover:text-meal-coral hover:bg-meal-card transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-meal-muted"
                               title={d.isCustomSlot ? "Pick a new option below to swap back" : "Re-roll this meal"}
                             >
                               {swappingIndex === i ? (
@@ -1056,7 +1056,7 @@ export default function PlanPage() {
                             {/* More options: cheat / takeaway type */}
                             <button
                               onClick={() => setExpandedResultIdx(expandedResultIdx === i ? null : i)}
-                              className={`p-1.5 rounded-lg transition-colors hover:bg-white ${expandedResultIdx === i ? "text-meal-coral bg-white" : "text-meal-muted hover:text-meal-coral"}`}
+                              className={`p-1.5 rounded-lg transition-colors hover:bg-meal-card ${expandedResultIdx === i ? "text-meal-coral bg-meal-card" : "text-meal-muted hover:text-meal-coral"}`}
                               title="Make takeaway or cheat meal instead"
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -1067,7 +1067,7 @@ export default function PlanPage() {
                         )}
                       </div>
                       {expandedResultIdx === i && !dinnersSaved && (
-                        <div className="px-3 pb-3 pt-1 border-t border-meal-warm/50 bg-white/40">
+                        <div className="px-3 pb-3 pt-1 border-t border-meal-warm/50 bg-meal-card/5">
                           <p className="text-[10px] font-bold text-meal-muted uppercase tracking-wider mb-1.5">
                             Replace with
                           </p>
@@ -1144,7 +1144,7 @@ export default function PlanPage() {
       {pickerOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
           onClick={() => { setPickerOpen(null); setPickerSearch("") }}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80vh] overflow-auto p-5"
+          <div className="bg-meal-card rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80vh] overflow-auto p-5"
             onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-meal-charcoal mb-4">
               {pickerOpen.addSide ? "Add Side — " : ""}{DAY_LABELS[pickerOpen.day]} {pickerOpen.meal_type}
@@ -1219,7 +1219,7 @@ export default function PlanPage() {
                         >
                           <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
                           {r.is_gluten_free ? (
-                            <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                            <span className="text-[10px] font-semibold text-meal-gf">GF</span>
                           ) : (
                             <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
                           )}
@@ -1281,7 +1281,7 @@ export default function PlanPage() {
                               >
                                 <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
                                 {r.is_gluten_free ? (
-                                  <span className="text-[10px] font-semibold text-meal-sage">GF</span>
+                                  <span className="text-[10px] font-semibold text-meal-gf">GF</span>
                                 ) : (
                                   <span className="text-[10px] font-semibold text-meal-amber">Gluten</span>
                                 )}

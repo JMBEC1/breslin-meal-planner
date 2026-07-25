@@ -1,11 +1,11 @@
 {
-  "name": "The Breslin Fork & Spoon",
-  "short_name": "Fork & Spoon",
-  "description": "Weekly meal planning for the Breslin family",
+  "name": "Scran",
+  "short_name": "Scran",
+  "description": "The Breslin family dinner planner",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFFAF5",
-  "theme_color": "#7C9A6E",
+  "background_color": "#121211",
+  "theme_color": "#121211",
   "icons": [
     {
       "src": "/icon-192.png",

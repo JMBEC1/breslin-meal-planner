@@ -9,21 +9,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Scran palette — dark ink UI, one tomato accent.
+        // Token names kept for compatibility; values re-pointed.
         meal: {
-          cream: "#FFFAF5",
-          warm: "#F5E6D3",
-          sage: "#7C9A6E",
-          sageHover: "#6B8A5D",
-          coral: "#E8836B",
-          amber: "#D4A843",
-          sky: "#6BA3BE",
-          plum: "#8B5E83",
-          charcoal: "#2D2D2D",
-          muted: "#8B8178",
+          cream: "#121211",     // page background (near-black ink)
+          card: "#1C1C1A",      // raised surfaces: cards, inputs, modals
+          warm: "#292927",      // borders, subtle fills, hover states
+          sage: "#D5522F",      // tomato — interactive: buttons, active nav, links
+          sageHover: "#E0603C",
+          coral: "#D5522F",     // tomato — the accent (matches the dot)
+          amber: "#C9A03C",     // ochre — gluten warning
+          sky: "#6E93B0",
+          plum: "#8A80A0",      // slate lavender — special / manual picks
+          charcoal: "#F0F0EC",  // primary text (off-white)
+          muted: "#96968F",     // secondary text
+          gf: "#4E9960",        // green — reserved for GF badges only
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: ["var(--font-jost)", "system-ui", "sans-serif"],
+        display: ["var(--font-space-grotesk)", "var(--font-jost)", "system-ui", "sans-serif"],
       },
     },
   },

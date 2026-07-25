@@ -62,13 +62,11 @@ export function Nav() {
   return (
     <>
       {/* Desktop top nav */}
-      <nav className="hidden md:block bg-white/80 backdrop-blur-sm border-b border-meal-warm sticky top-0 z-50">
+      <nav className="hidden md:block bg-meal-cream/85 backdrop-blur-sm border-b border-meal-warm sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/logo-icon.svg" alt="" className="h-8 w-auto" />
-            <span className="text-lg font-bold text-meal-charcoal tracking-tight">
-              <span className="text-meal-muted font-normal text-xs uppercase tracking-widest block -mb-1">The Breslin</span>
-              Fork <span className="text-meal-sage">&amp;</span> <span className="text-meal-coral">Spoon</span>
+          <Link href="/" className="flex items-center">
+            <span className="font-display text-2xl font-bold text-meal-charcoal tracking-tight">
+              scran<span className="text-meal-coral">.</span>
             </span>
           </Link>
           <div className="flex items-center gap-1">
@@ -91,16 +89,14 @@ export function Nav() {
       </nav>
 
       {/* Mobile top logo */}
-      <div className="md:hidden bg-white/80 backdrop-blur-sm border-b border-meal-warm sticky top-0 z-50 px-4 py-2.5 flex items-center justify-center gap-2">
-        <img src="/logo-icon.svg" alt="" className="h-7 w-auto" />
-        <span className="text-base font-bold text-meal-charcoal tracking-tight">
-          <span className="text-meal-muted font-normal text-[9px] uppercase tracking-widest block -mb-0.5">The Breslin</span>
-          Fork <span className="text-meal-sage">&amp;</span> <span className="text-meal-coral">Spoon</span>
+      <div className="md:hidden bg-meal-cream/85 backdrop-blur-sm border-b border-meal-warm sticky top-0 z-50 px-4 py-2.5 flex items-center justify-center">
+        <span className="font-display text-xl font-bold text-meal-charcoal tracking-tight">
+          scran<span className="text-meal-coral">.</span>
         </span>
       </div>
 
       {/* Mobile bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-meal-warm z-50 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-meal-cream/95 backdrop-blur-sm border-t border-meal-warm z-50 pb-safe">
         <div className="flex justify-around items-center h-16">
           {tabs.map((tab) => (
             <Link

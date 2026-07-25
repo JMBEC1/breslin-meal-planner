@@ -89,7 +89,7 @@ export default function FavouritesPage() {
         <div className="space-y-3">
           {ratedRecipes.map(({ recipe, ratings: recipeRatings, avgEnjoyment, easeOfCooking }, i) => (
             <Link key={recipe.id} href={`/recipes/${recipe.id}`} className="block">
-              <div className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="bg-meal-card rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-start gap-3">
                   <span className="text-lg font-bold text-meal-muted/50 w-8 text-center shrink-0">
                     {i + 1}
@@ -123,7 +123,7 @@ export default function FavouritesPage() {
                     )}
                   </div>
                   {recipe.is_gluten_free ? (
-                    <span className="text-[10px] font-semibold text-meal-sage bg-meal-sage/10 px-2 py-0.5 rounded-full">GF</span>
+                    <span className="text-[10px] font-semibold text-meal-gf bg-meal-gf/10 px-2 py-0.5 rounded-full">GF</span>
                   ) : (
                     <span className="text-[10px] font-semibold text-meal-amber bg-meal-amber/10 px-2 py-0.5 rounded-full">Gluten</span>
                   )}

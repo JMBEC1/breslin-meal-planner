@@ -75,7 +75,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <button
             onClick={() => setImagePickerOpen(true)}
-            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 hover:bg-white text-meal-charcoal text-xs font-medium shadow-md transition-colors"
+            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/55 hover:bg-black/70 text-white text-xs font-medium shadow-md transition-colors"
             title="Change image"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -190,7 +190,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Ingredients */}
       {recipe.ingredients.length > 0 && (
-        <div className="bg-white rounded-xl p-5 mb-6 shadow-sm">
+        <div className="bg-meal-card rounded-xl p-5 mb-6 shadow-sm">
           <h2 className="text-lg font-semibold text-meal-charcoal mb-3">Ingredients</h2>
           <ul className="space-y-2">
             {recipe.ingredients.map((ing, i) => (
@@ -217,7 +217,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Instructions */}
       {recipe.instructions && (
-        <div className="bg-white rounded-xl p-5 mb-6 shadow-sm">
+        <div className="bg-meal-card rounded-xl p-5 mb-6 shadow-sm">
           <h2 className="text-lg font-semibold text-meal-charcoal mb-3">Instructions</h2>
           <ol className="space-y-3">
             {(recipe.instructions.match(/\d{1,3}\.\s[^]*?(?=\d{1,3}\.\s|$)/g) || [recipe.instructions])

@@ -87,7 +87,7 @@ export default function RecipesPage() {
         <div className="flex gap-2 flex-wrap">
           <Link
             href="/recipes/tidy"
-            className="px-3 py-2 rounded-lg bg-white border border-meal-warm text-meal-muted text-sm font-medium hover:text-meal-charcoal hover:bg-meal-cream transition-colors"
+            className="px-3 py-2 rounded-lg bg-meal-card border border-meal-warm text-meal-muted text-sm font-medium hover:text-meal-charcoal hover:bg-meal-cream transition-colors"
             title="AI-suggested clean titles"
           >
             ✨ Tidy titles
@@ -120,7 +120,7 @@ export default function RecipesPage() {
           placeholder="Search recipes..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-4 py-2.5 rounded-lg bg-white border border-meal-warm text-meal-charcoal placeholder:text-meal-muted focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage transition-colors"
+          className="w-full px-4 py-2.5 rounded-lg bg-meal-card border border-meal-warm text-meal-charcoal placeholder:text-meal-muted focus:outline-none focus:ring-2 focus:ring-meal-sage/30 focus:border-meal-sage transition-colors"
         />
       </div>
 
@@ -165,7 +165,7 @@ export default function RecipesPage() {
       {cheatModalOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center"
           onClick={() => setCheatModalOpen(false)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-sm p-5"
+          <div className="bg-meal-card rounded-t-2xl md:rounded-2xl w-full max-w-sm p-5"
             onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-meal-charcoal mb-1">Add Cheat Meal</h3>
             <p className="text-sm text-meal-muted mb-4">Quick meals with no recipe — just a name and servings.</p>
@@ -206,7 +206,7 @@ export default function RecipesPage() {
               <button
                 onClick={() => setCheatGF(!cheatGF)}
                 className={`w-full px-3 py-2 rounded-lg text-sm font-medium ${
-                  cheatGF ? "bg-meal-sage/10 text-meal-sage" : "bg-meal-amber/10 text-meal-amber"
+                  cheatGF ? "bg-meal-gf/10 text-meal-gf" : "bg-meal-amber/10 text-meal-amber"
                 }`}
               >
                 {cheatGF ? "✓ Gluten Free" : "Contains Gluten"}
