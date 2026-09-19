@@ -16,6 +16,10 @@ const STATIC_TAKEAWAY_IMAGE_MAP: Record<string, string> = {
   indian: "/takeaway/indian.jpg",
 }
 
+/** Display-cased cuisines, as shown on the picker and the override chips. */
+export const TAKEAWAY_TYPES = ["Sushi", "Pizza", "Thai", "Indian", "Burgers", "Other"] as const
+export type TakeawayType = (typeof TAKEAWAY_TYPES)[number]
+
 export const TAKEAWAY_TYPE_KEYS = ["sushi", "pizza", "thai", "indian", "burgers", "other"] as const
 export type TakeawayKey = (typeof TAKEAWAY_TYPE_KEYS)[number]
 
