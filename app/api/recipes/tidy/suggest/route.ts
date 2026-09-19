@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getRecipes } from "@/lib/db"
-import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
+import { getAnthropicClient } from "@/lib/anthropic"
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod"
+import { z } from "zod"
 import type { Ingredient } from "@/types"
 
 export const dynamic = "force-dynamic"
@@ -20,9 +22,13 @@ Rules:
 - Keep the dish identifiable. Preserve protein/main ingredient names.
 - Don't add information not present in the original.
 - Don't remove distinctive cooking methods (Slow Cooker, Oven Baked, Air Fryer) unless they're clearly fluff.
-- Aim for ~30 chars or less, but never truncate to the point of ambiguity.
+- Aim for ~30 chars or less, but never truncate to the point of ambiguity.`
 
-Return ONLY valid JSON (no markdown fences): {"title": "..."}.`
+// The shape is enforced by the schema, so the prompt no longer has to ask for
+// it — and can't drift out of step with what the code expects.
+const TitleSchema = z.object({
+  title: z.string().describe("The cleaned-up recipe title"),
+})
 
 async function suggestOne(client: ReturnType<typeof getAnthropicClient>, current: string, ingredients: Ingredient[]): Promise<string> {
   if (!client) return current
@@ -30,16 +36,14 @@ async function suggestOne(client: ReturnType<typeof getAnthropicClient>, current
   const userMsg = `Original: "${current}"${topIngredients ? `\nIngredients (top 5): ${topIngredients}` : ""}`
 
   try {
-    const res = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const res = await client.messages.parse({
+      model: "claude-haiku-4-5",
       max_tokens: 200,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMsg }],
+      output_config: { format: zodOutputFormat(TitleSchema) },
     })
-    const block = res.content.find((b) => b.type === "text")
-    if (!block || block.type !== "text") return current
-    const parsed = JSON.parse(cleanJson(block.text)) as { title?: string }
-    const suggested = (parsed.title ?? "").trim()
+    const suggested = (res.parsed_output?.title ?? "").trim()
     return suggested || current
   } catch (err) {
     console.error("[tidy/suggest] failed for:", current, err)

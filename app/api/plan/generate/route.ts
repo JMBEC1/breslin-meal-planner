@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
+import { getAnthropicClient } from "@/lib/anthropic"
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod"
+import { z } from "zod"
 import { getRecipes } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
+
+/**
+ * NOTE: this is the pre-strip-back planner and it still fills lunch slots as
+ * well as dinners. The app is dinner-only now, so the lunches it returns have
+ * nowhere to render. It is reached from the "AI Fill All" button on the plan
+ * page; /api/plan/generate-dinners is the current path.
+ */
+
+const SuggestionsSchema = z.object({
+  suggestions: z.array(
+    z.object({
+      day: z.enum(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]),
+      meal_type: z.enum(["lunch", "dinner"]),
+      recipe_id: z.number().int().nullable().describe("An ID from the list, or null for a new suggestion"),
+      title: z.string(),
+      description: z.string().nullable(),
+      is_gluten_free: z.boolean(),
+    })
+  ),
+})
 
 export async function POST(req: NextRequest) {
   const { meals, preferences } = await req.json()
@@ -20,8 +42,8 @@ export async function POST(req: NextRequest) {
     .map((m: { day: string; meal_type: string; custom_text: string | null }) => `${m.day} ${m.meal_type}: ${m.custom_text || "filled"}`)
     .join(", ")
 
-  const message = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+  const message = await client.messages.parse({
+    model: "claude-haiku-4-5",
     max_tokens: 2048,
     messages: [{
       role: "user",
@@ -35,27 +57,15 @@ ${preferences ? `Preferences: ${preferences}` : ""}
 
 Fill in the EMPTY slots for a week (Monday-Sunday, lunch and dinner). For lunch, suggest healthy school-friendly packed lunches. For dinner, suggest family dinners. Prefer gluten-free recipes where possible.
 
-If suitable recipes exist in the database, reference them by ID. Otherwise suggest new recipes.
-
-Return ONLY valid JSON (no markdown fences):
-{
-  "suggestions": [
-    {"day": "monday", "meal_type": "lunch", "recipe_id": 5, "title": "Existing Recipe Name"},
-    {"day": "monday", "meal_type": "dinner", "recipe_id": null, "title": "New Suggested Recipe", "description": "Brief description", "is_gluten_free": true}
-  ]
-}
+If suitable recipes exist in the database, reference them by ID. Otherwise set recipe_id to null and suggest a new recipe.
 
 Only fill empty slots. Skip days that are already planned.`,
     }],
+    output_config: { format: zodOutputFormat(SuggestionsSchema) },
   })
 
-  const content = message.content[0]
-  if (content.type !== "text") return NextResponse.json({ error: "Unexpected response" }, { status: 500 })
-
-  try {
-    const result = JSON.parse(cleanJson(content.text))
-    return NextResponse.json(result)
-  } catch {
+  if (!message.parsed_output) {
     return NextResponse.json({ error: "Could not generate plan" }, { status: 422 })
   }
+  return NextResponse.json(message.parsed_output)
 }

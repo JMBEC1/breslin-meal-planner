@@ -8,14 +8,15 @@
     "start": "next start"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.86.1",
+    "@anthropic-ai/sdk": "^0.127.0",
     "@neondatabase/serverless": "^1.0.2",
     "@types/better-sqlite3": "^7.6.13",
     "@vercel/blob": "^2.3.1",
     "better-sqlite3": "^12.6.2",
     "next": "^15.5.12",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.13",

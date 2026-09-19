@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
+import { getAnthropicClient } from "@/lib/anthropic"
+import { ExtractedRecipeSchema, RECIPE_EXTRACTION_PROMPT } from "@/lib/recipe-extraction"
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
@@ -95,48 +97,27 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const message = await client.messages.parse({
+      model: "claude-haiku-4-5",
       max_tokens: 2048,
       messages: [{
         role: "user",
-        content: `Extract a recipe from this content. Return ONLY valid JSON (no markdown fences) with this structure:
-{
-  "title": "Recipe name",
-  "description": "Short 1-2 sentence description",
-  "category": "dinner" or "fancy",
-  "is_gluten_free": true/false,
-  "prep_time_mins": number or null,
-  "cook_time_mins": number or null,
-  "servings": number or null,
-  "ingredients": [
-    {"name": "ingredient", "quantity": "2", "unit": "cups", "aisle": "pantry", "is_gluten_free": true}
-  ],
-  "instructions": "Step-by-step instructions as plain text with numbered steps",
-  "tags": ["tag1", "tag2"],
-  "gluten_warnings": ["list any gluten-containing ingredients"]
-}
-
-Aisle options: fruit-veg, meat-seafood, dairy-eggs, bakery, pantry, frozen, condiments-sauces, drinks, snacks, international, health-foods, other.
-
-Be thorough with the is_gluten_free check — flag flour, bread, pasta, soy sauce, etc. as containing gluten.
-
-If this is ISO 8601 duration format (PT30M etc), convert to minutes.
-
-Content:
-${textForAI}`,
+        content: `${RECIPE_EXTRACTION_PROMPT}\n\nContent:\n${textForAI}`,
       }],
+      output_config: { format: zodOutputFormat(ExtractedRecipeSchema) },
     })
 
-    const content = message.content[0]
-    if (content.type !== "text") {
-      return NextResponse.json({ error: "Unexpected AI response" }, { status: 500 })
+    if (!message.parsed_output) {
+      return NextResponse.json(
+        { error: "Could not parse recipe from that page — try the 'From Image' tab instead" },
+        { status: 422 },
+      )
     }
 
-    const recipe = JSON.parse(cleanJson(content.text))
+    const recipe: Record<string, unknown> = { ...message.parsed_output }
     recipe.source_url = url
-    recipe.image_url = recipe.image_url || pageImage || null
-    // If JSON-LD had an image, prefer it
+    recipe.image_url = pageImage || null
+    // JSON-LD's own image beats the page's og:image when both are present.
     if (jsonLd?.image) {
       const img = typeof jsonLd.image === "string" ? jsonLd.image
         : Array.isArray(jsonLd.image) ? jsonLd.image[0]

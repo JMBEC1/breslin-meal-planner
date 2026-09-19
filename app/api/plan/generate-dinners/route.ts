@@ -1,18 +1,51 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient, cleanJson } from "@/lib/anthropic"
+import { getAnthropicClient } from "@/lib/anthropic"
 import { getRecipes, getAllRatings } from "@/lib/db"
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod"
+import { z } from "zod"
 
 export const dynamic = "force-dynamic"
 
+/**
+ * Pick this week's dinners from the recipes the family already has.
+ *
+ * Library-only. The "internet" and "mix" modes were taken out of the UI in
+ * 64d736b but left behind here, unreachable — the page has only ever sent
+ * "stored" since. They're gone now, and with them the second Claude call.
+ *
+ * The one remaining AI call is optional: it fires only when a theme is typed
+ * in, and all it does is choose from the list below. Without a theme this
+ * endpoint makes no API call at all.
+ */
+
+const DinnerPickSchema = z.object({
+  dinners: z.array(
+    z.object({
+      recipe_id: z.number().int().describe("The ID from the list, exactly as given"),
+      title: z.string(),
+      is_gluten_free: z.boolean(),
+      servings: z.number().int(),
+      leftovers: z.boolean().describe("True if 6+ servings, so it covers a second night"),
+    })
+  ),
+})
+
+/** Fisher–Yates. `sort(() => Math.random() - 0.5)` is not a fair shuffle. */
+function shuffle<T>(items: T[]): T[] {
+  const a = [...items]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 export async function POST(req: NextRequest) {
-  const { mode, inspiration, swapIndex, targetCount, excludeTitles } = await req.json()
-  // mode: "stored" | "internet" | "mix"
-  // inspiration: optional string like "indian", "slow cooker", "salads"
-  // swapIndex: if set, only regenerate one meal (returns a single suggestion)
-  // targetCount: how many dinners to generate (caller passes the auto-day count).
-  //   Falls back to a 5-7 range if omitted.
-  // excludeTitles: titles of dinners already in the current results — used by
-  //   the swap flow so we don't return what the user is already looking at.
+  const { inspiration, swapIndex, targetCount, excludeTitles } = await req.json()
+  // inspiration: optional theme like "indian", "slow cooker", "salads"
+  // swapIndex: set when regenerating a single meal (returns one suggestion)
+  // targetCount: how many dinners to pick — the caller's auto-day count
+  // excludeTitles: what's already on screen, so a swap returns something else
   const wantCount: number | undefined =
     typeof targetCount === "number" && targetCount > 0 && targetCount <= 7 ? Math.floor(targetCount) : undefined
   const excludeSet = new Set(
@@ -21,174 +54,94 @@ export async function POST(req: NextRequest) {
       .map((t) => t.toLowerCase().trim()),
   )
 
-  const client = getAnthropicClient()
-  if (!client && mode !== "stored") {
-    return NextResponse.json({ error: "AI not configured — set ANTHROPIC_API_KEY" }, { status: 500 })
-  }
-
   const recipes = await getRecipes("dinner")
   const ratings = await getAllRatings()
 
-  // Build rating context for stored recipes
-  const recipeContext = recipes.map((r) => {
-    const recipeRatings = ratings.filter((rt) => rt.recipe_id === r.id)
-    const avgEnjoyment = recipeRatings.length > 0
-      ? (recipeRatings.reduce((sum, rt) => sum + rt.enjoyment, 0) / recipeRatings.length).toFixed(1)
-      : "unrated"
-    const ease = recipeRatings.length > 0 ? recipeRatings[0].ease_of_cooking : null
-    return `ID:${r.id} "${r.title}" ${r.is_gluten_free ? "GF" : "GLUTEN"} enjoyment:${avgEnjoyment} ease:${ease ?? "unrated"} servings:${r.servings ?? "?"} tags:${r.tags?.join(",") || "none"}`
-  }).join("\n")
+  if (recipes.length === 0) {
+    return NextResponse.json({ error: "No dinner recipes saved yet — add some first." }, { status: 400 })
+  }
 
-  const inspirationNote = inspiration?.trim()
-    ? `\n\nIMPORTANT THEME/INSPIRATION: The family wants meals inspired by "${inspiration.trim()}". Focus suggestions around this theme where possible.`
-    : ""
+  const avgEnjoyment = (recipeId: number): number | null => {
+    const rated = ratings.filter((rt) => rt.recipe_id === recipeId && rt.enjoyment > 0)
+    if (rated.length === 0) return null
+    return rated.reduce((sum, rt) => sum + rt.enjoyment, 0) / rated.length
+  }
 
-  const excludeNote = excludeSet.size > 0
-    ? `\n\nDO NOT suggest any of these (already in the user's list): ${[...excludeSet].join(", ")}.`
-    : ""
+  // A theme narrows the list; Claude only ever chooses from what's already saved.
+  const client = getAnthropicClient()
+  if (inspiration?.trim() && client) {
+    const recipeContext = recipes.map((r) => {
+      const avg = avgEnjoyment(r.id)
+      const ease = ratings.find((rt) => rt.recipe_id === r.id)?.ease_of_cooking
+      return `ID:${r.id} "${r.title}" ${r.is_gluten_free ? "GF" : "GLUTEN"} enjoyment:${avg?.toFixed(1) ?? "unrated"} ease:${ease ?? "unrated"} servings:${r.servings ?? "?"} tags:${r.tags?.join(",") || "none"}`
+    }).join("\n")
 
-  // Mode: stored only — pick randomly from existing recipes, weighted by ratings
-  if (mode === "stored") {
-    if (recipes.length === 0) {
-      return NextResponse.json({ error: "No dinner recipes saved yet. Add some first, or try 'internet' or 'mix' mode." }, { status: 400 })
-    }
+    const howMany = swapIndex !== undefined
+      ? "1 dinner"
+      : wantCount ? `exactly ${wantCount} dinner${wantCount === 1 ? "" : "s"}` : "5-7 dinners"
 
-    // If there's inspiration text and we have AI, filter/sort with AI even for stored
-    if (inspiration?.trim() && client) {
-      const message = await client.messages.create({
-        model: "claude-haiku-4-5-20251001",
+    try {
+      const message = await client.messages.parse({
+        model: "claude-haiku-4-5",
         max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `Pick ${swapIndex !== undefined ? "1 dinner" : wantCount ? `exactly ${wantCount} dinner${wantCount === 1 ? "" : "s"}` : "5-7 dinners"} from this list that best match the theme "${inspiration.trim()}". If few match, pick the closest ones.
+          content: `Pick ${howMany} from this list that best match the theme "${inspiration.trim()}". If few match, pick the closest ones.
 
 Recipes:
 ${recipeContext}
-${excludeNote}
+${excludeSet.size > 0 ? `\nDo not pick any of these, they are already on screen: ${[...excludeSet].join(", ")}.` : ""}
 
-Big meals (6+ servings) can cover 2 nights with leftovers.
-
-Return ONLY valid JSON (no markdown fences):
-{ "dinners": [{ "recipe_id": <id>, "title": "name", "is_gluten_free": true, "servings": 4, "leftovers": false }] }`,
+Big meals (6+ servings) can cover two nights with leftovers.`,
         }],
+        output_config: { format: zodOutputFormat(DinnerPickSchema) },
       })
-      const content = message.content[0]
-      if (content.type === "text") {
-        try {
-          const result = JSON.parse(cleanJson(content.text))
-          result.mode = "stored"
-          return NextResponse.json(result)
-        } catch { /* fall through to random */ }
+
+      if (message.parsed_output?.dinners.length) {
+        return NextResponse.json({ ...message.parsed_output, mode: "stored" })
       }
+    } catch (err) {
+      // A theme that finds nothing shouldn't cost him his dinners — fall
+      // through to the weighted pick below.
+      console.error("[generate-dinners] theme filter failed:", err)
     }
-
-    // Weight by enjoyment rating (unrated = 3, rated = actual avg)
-    const weighted = recipes.map((r) => {
-      const recipeRatings = ratings.filter((rt) => rt.recipe_id === r.id && rt.enjoyment > 0)
-      const avgEnjoyment = recipeRatings.length > 0
-        ? recipeRatings.reduce((sum, rt) => sum + rt.enjoyment, 0) / recipeRatings.length
-        : 3
-      return { recipe: r, weight: avgEnjoyment }
-    })
-
-    const shuffled = weighted.sort(() => Math.random() - 0.5)
-      .sort((a, b) => b.weight - a.weight)
-
-    // Drop anything already in the result list — without this, swap would
-    // hand back the same top-weighted recipe every press.
-    const eligible = excludeSet.size > 0
-      ? shuffled.filter(({ recipe }) => !excludeSet.has(recipe.title.toLowerCase().trim()))
-      : shuffled
-
-    if (swapIndex !== undefined) {
-      // Pick from the top-K weighted-and-eligible pool so swap actually
-      // varies. Fall back to the full shuffle if exclusion empties the pool.
-      const pool = eligible.length > 0 ? eligible : shuffled
-      const topK = pool.slice(0, Math.min(8, pool.length))
-      const pick = topK[Math.floor(Math.random() * topK.length)]
-      return NextResponse.json({
-        dinners: [{
-          recipe_id: pick.recipe.id,
-          title: pick.recipe.title,
-          is_gluten_free: pick.recipe.is_gluten_free,
-          servings: pick.recipe.servings,
-          leftovers: (pick.recipe.servings || 4) >= 6,
-        }],
-        mode: "stored",
-      })
-    }
-
-    const dayBudget = wantCount ?? 7
-    const selected: typeof recipes = []
-    let totalServingDays = 0
-    for (const item of shuffled) {
-      if (totalServingDays >= dayBudget) break
-      selected.push(item.recipe)
-      const servings = item.recipe.servings || 4
-      totalServingDays += servings >= 6 ? 2 : 1
-    }
-
-    return NextResponse.json({
-      dinners: selected.map((r) => ({
-        recipe_id: r.id,
-        title: r.title,
-        is_gluten_free: r.is_gluten_free,
-        servings: r.servings,
-        leftovers: (r.servings || 4) >= 6,
-      })),
-      mode: "stored",
-    })
   }
 
-  // Mode: internet or mix — use AI
-  const count = swapIndex !== undefined
-    ? "1 dinner recipe"
-    : wantCount
-      ? `exactly ${wantCount} dinner recipe${wantCount === 1 ? "" : "s"}`
-      : "5-7 dinner recipes"
+  // Weighted by how much the family enjoyed it. Unrated sits at 3 so a new
+  // recipe isn't buried before anyone has had a chance to rate it.
+  const weighted = shuffle(recipes).map((recipe) => ({
+    recipe,
+    weight: avgEnjoyment(recipe.id) ?? 3,
+  }))
+  weighted.sort((a, b) => b.weight - a.weight)
 
-  const modeInstruction = mode === "internet"
-    ? `Suggest ${count} that are NEW — from popular food websites and blogs (RecipeTin Eats, Donna Hay, Taste.com.au, etc). Do NOT use any from the stored list. Focus on highly-rated, well-known recipes.`
-    : `Suggest ${count} using a MIX of stored recipes and new internet finds. Use about half from stored (prefer higher-rated ones) and half new. Stored recipes:\n${recipeContext}`
-
-  const message = await client!.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
-    messages: [{
-      role: "user",
-      content: `You are a family meal planner for an Australian family. One daughter is gluten-free, so prefer GF recipes. When suggesting non-GF meals, note the GF swap.
-
-${modeInstruction}${inspirationNote}${excludeNote}
-
-Consider that big meals (6+ servings) can cover 2 nights with leftovers, so you may suggest fewer than 7 recipes if some are large.
-
-Return ONLY valid JSON (no markdown fences):
-{
-  "dinners": [
-    {
-      "recipe_id": null,
-      "title": "Recipe Name",
-      "description": "Brief description",
-      "is_gluten_free": true,
-      "servings": 4,
-      "leftovers": false,
-      "source_hint": "e.g. RecipeTin Eats, Donna Hay, stored"
-    }
-  ]
-}
-
-For stored recipes, use their actual recipe_id. For new recipes, set recipe_id to null.`,
-    }],
+  const asDinner = (r: (typeof recipes)[number]) => ({
+    recipe_id: r.id,
+    title: r.title,
+    is_gluten_free: r.is_gluten_free,
+    servings: r.servings,
+    leftovers: (r.servings || 4) >= 6,
   })
 
-  const content = message.content[0]
-  if (content.type !== "text") return NextResponse.json({ error: "Unexpected response" }, { status: 500 })
-
-  try {
-    const result = JSON.parse(cleanJson(content.text))
-    result.mode = mode
-    return NextResponse.json(result)
-  } catch {
-    return NextResponse.json({ error: "Could not generate dinner plan" }, { status: 422 })
+  if (swapIndex !== undefined) {
+    // Pick from the top of the eligible pool so a swap actually varies rather
+    // than handing back the same top-weighted recipe every press.
+    const eligible = weighted.filter(({ recipe }) => !excludeSet.has(recipe.title.toLowerCase().trim()))
+    const pool = eligible.length > 0 ? eligible : weighted
+    const topK = pool.slice(0, Math.min(8, pool.length))
+    const pick = topK[Math.floor(Math.random() * topK.length)]
+    return NextResponse.json({ dinners: [asDinner(pick.recipe)], mode: "stored" })
   }
+
+  // Fill the week by serving-days, not by recipe count: a big meal buys two.
+  const dayBudget = wantCount ?? 7
+  const selected: typeof recipes = []
+  let servingDays = 0
+  for (const { recipe } of weighted) {
+    if (servingDays >= dayBudget) break
+    selected.push(recipe)
+    servingDays += (recipe.servings || 4) >= 6 ? 2 : 1
+  }
+
+  return NextResponse.json({ dinners: selected.map(asDinner), mode: "stored" })
 }
