@@ -137,7 +137,6 @@ function PlanPageInner() {
   const [meals, setMeals] = useState<MealSlot[]>([])
   const [recipes, setRecipes] = useState<Record<number, Recipe>>({})
   const [loading, setLoading] = useState(true)
-  const [generating, setGenerating] = useState(false)
   const [pickerOpen, setPickerOpen] = useState<{ day: DayOfWeek; meal_type: MealType; addSide?: boolean; bridge?: boolean } | null>(null)
   // "Still this week" bridge — when viewing a future week, the remaining days
   // of the CURRENT week are shown as plannable tiles above the grid, so
@@ -321,32 +320,6 @@ function PlanPageInner() {
   function clearSlot(day: DayOfWeek, mealType: MealType) {
     const updated = meals.filter((m) => !(m.day === day && m.meal_type === mealType))
     savePlan(updated)
-  }
-
-  async function handleGenerate() {
-    setGenerating(true)
-    const res = await fetch("/api/plan/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ meals }),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      const updated = [...meals]
-      for (const s of data.suggestions || []) {
-        const exists = updated.find((m: MealSlot) => m.day === s.day && m.meal_type === s.meal_type)
-        if (!exists) {
-          updated.push({
-            day: s.day,
-            meal_type: s.meal_type,
-            recipe_id: s.recipe_id || null,
-            custom_text: s.recipe_id ? null : s.title,
-          })
-        }
-      }
-      savePlan(updated)
-    }
-    setGenerating(false)
   }
 
   // ── Dinner generator ────────────────────────────────────────────
@@ -581,13 +554,6 @@ function PlanPageInner() {
             className="px-4 py-2 rounded-lg bg-meal-coral text-white text-sm font-medium hover:bg-meal-coral/80 transition-colors"
           >
             Generate Dinners
-          </button>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="px-4 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover transition-colors disabled:opacity-50"
-          >
-            {generating ? "Generating..." : "AI Fill All"}
           </button>
           <Link
             href={`/shopping?week=${weekStart}`}
