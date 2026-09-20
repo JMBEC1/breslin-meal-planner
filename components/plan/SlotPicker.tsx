@@ -337,8 +337,13 @@ export function SlotPicker({
                 })()}
               </div>
 
+              {/* Pinned to the bottom of the modal. The modal is one scrolling
+                  box, so a bar at the end of the list sits below sixty recipes
+                  where nobody will ever find it — which is exactly what
+                  happened: tapping a main highlighted it and appeared to do
+                  nothing. */}
               {!target.addSide && (mainPick || extras.length > 0) && (
-                <div className="border-t border-meal-cream p-3 bg-meal-card">
+                <div className="sticky bottom-0 -mx-5 -mb-5 px-5 py-3 border-t border-meal-cream bg-meal-card shadow-[0_-8px_16px_-8px_rgba(0,0,0,0.45)]">
                   <p className="text-xs text-meal-muted mb-2 truncate">
                     {mainPick ? mainPick.title : <span className="text-meal-coral">Pick a main</span>}
                     {extras.length > 0 && ` + ${extras.map((r) => r.title).join(" + ")}`}
@@ -355,7 +360,7 @@ export function SlotPicker({
                       disabled={!mainPick}
                       className="flex-1 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover disabled:opacity-40"
                     >
-                      Add {extras.length > 0 ? `${extras.length + 1} dishes` : "to plan"}
+                      Add {extras.length > 0 ? `${extras.length + 1} dishes` : ""} to {DAY_LABELS[target.day]}
                     </button>
                   </div>
                 </div>
