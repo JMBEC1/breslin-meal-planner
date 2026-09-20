@@ -1,3 +1,5 @@
+import { BASES, guessBases } from "./bases"
+
 /**
  * Postgres on Neon, and only Neon.
  *
@@ -172,7 +174,18 @@ export async function getRecipes(
   // the family writes them in whatever case they like.
   return parsed.filter((r) => {
     const have = (r.tags ?? []).map((t: string) => t.toLowerCase())
-    return wanted.every((w) => have.includes(w))
+    return wanted.every((w) => {
+      if (have.includes(w)) return true
+      // A "made of" filter falls back to the guess, but only for recipes that
+      // have not been filed yet — once someone has set the bases on the
+      // Organise screen, those are the answer and the guess doesn't override
+      // them. Cuisines never fall back; there is nothing to infer them from.
+      const isBase = BASES.some((b) => b.toLowerCase() === w)
+      if (!isBase) return false
+      const alreadyFiled = BASES.some((b) => have.includes(b.toLowerCase()))
+      if (alreadyFiled) return false
+      return guessBases(r).some((b) => b.toLowerCase() === w)
+    })
   })
 }
 
