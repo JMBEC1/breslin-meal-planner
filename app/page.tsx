@@ -195,7 +195,10 @@ function PlanPageInner() {
     })
   }
 
-  function assignRecipe(day: DayOfWeek, mealType: MealType, recipeId: number | null, text: string | null) {
+  function assignRecipe(
+    day: DayOfWeek, mealType: MealType, recipeId: number | null, text: string | null,
+    sideIds?: number[],
+  ) {
     if (pickerOpen?.bridge) {
       // Writing into the CURRENT week's plan from a future-week view.
       const existing = bridgeMeals.filter((m) => !(m.day === day && m.meal_type === mealType))
@@ -214,7 +217,10 @@ function PlanPageInner() {
       savePlan(updated)
     } else {
       const existing = meals.filter((m) => !(m.day === day && m.meal_type === mealType))
-      const updated = [...existing, { day, meal_type: mealType, recipe_id: recipeId, custom_text: text }]
+      const updated = [...existing, {
+        day, meal_type: mealType, recipe_id: recipeId, custom_text: text,
+        ...(sideIds?.length ? { side_ids: sideIds } : {}),
+      }]
       savePlan(updated)
     }
     setPickerOpen(null)

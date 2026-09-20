@@ -33,18 +33,55 @@ export const AISLE_LABELS: Record<AisleCategory, string> = {
 
 // ── Recipe ──────────────────────────────────────────────────────────────────
 
-export type RecipeCategory = "dinner" | "fancy" | "side"
+/**
+ * What a dish *is* — its course. One per recipe.
+ *
+ * Deliberately not the same axis as cuisine. A Mexican side salad is a side
+ * and it is Mexican; forcing one field to carry both would mean filtering
+ * "Sides" couldn't find it. Cuisine lives in `tags` (see CUISINES below), so
+ * the two combine.
+ */
+export type RecipeCategory = "main" | "salad" | "side" | "takeaway"
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
-  "dinner": "Dinner",
-  "fancy": "Special Occasion",
-  "side": "Side",
+  "main": "Mains",
+  "salad": "Salads",
+  "side": "Sides",
+  "takeaway": "Takeaway",
 }
 
 export const CATEGORY_COLOURS: Record<RecipeCategory, string> = {
-  "dinner": "bg-meal-coral",
-  "fancy": "bg-meal-plum",
-  "side": "bg-meal-sage",
+  "main": "bg-meal-coral",
+  "salad": "bg-meal-sage",
+  "side": "bg-meal-plum",
+  "takeaway": "bg-meal-muted",
+}
+
+/**
+ * Courses that are not the centre of the plate. Everything else is a main —
+ * derived rather than declared, so a new recipe is a main without anyone
+ * having to remember to say so, and the pre-course values ("dinner", "fancy")
+ * still behave correctly until they are re-filed.
+ */
+export const NON_MAIN_CATEGORIES: RecipeCategory[] = ["salad", "side", "takeaway"]
+
+export function toCategory(raw: string | null | undefined): RecipeCategory {
+  return (NON_MAIN_CATEGORIES as string[]).includes(raw ?? "")
+    ? (raw as RecipeCategory)
+    : "main"
+}
+
+/**
+ * Cuisines are tags, not categories, so a dish can be Mexican *and* a side.
+ * Matching against a recipe's tags is case-insensitive — the importer and the
+ * family both write them however they like.
+ */
+export const CUISINES = ["Mexican", "Asian", "Indian", "Spanish", "Western"] as const
+export type Cuisine = (typeof CUISINES)[number]
+
+export function hasCuisine(tags: string[] | null | undefined, cuisine: string): boolean {
+  const want = cuisine.toLowerCase()
+  return (tags ?? []).some((t) => t.toLowerCase() === want)
 }
 
 export interface Ingredient {

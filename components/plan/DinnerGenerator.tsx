@@ -264,7 +264,7 @@ export function DinnerGenerator({
         leftoverFor = null
         continue
       }
-      const recipeId = await saveAsSuggestionRecipe(dinner, "dinner")
+      const recipeId = await saveAsSuggestionRecipe(dinner, "main")
       updated.push({
         day,
         meal_type: "dinner" as MealType,

@@ -13,7 +13,7 @@ export default function NewRecipePage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [title, setTitle] = useState("")
-  const [category, setCategory] = useState<RecipeCategory>("dinner")
+  const [category, setCategory] = useState<RecipeCategory>("main")
   const [isGlutenFree, setIsGlutenFree] = useState(true)
   const [prepTime, setPrepTime] = useState("")
   const [cookTime, setCookTime] = useState("")

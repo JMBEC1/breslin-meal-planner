@@ -31,7 +31,7 @@ async function getNeon(): Promise<any> {
       id              SERIAL PRIMARY KEY,
       title           TEXT NOT NULL,
       slug            TEXT UNIQUE NOT NULL,
-      category        TEXT NOT NULL DEFAULT 'dinner',
+      category        TEXT NOT NULL DEFAULT 'main',
       is_gluten_free  INT  NOT NULL DEFAULT 1,
       prep_time_mins  INT  DEFAULT NULL,
       cook_time_mins  INT  DEFAULT NULL,
@@ -130,10 +130,31 @@ function parseRecipe(row: RecipeRow) {
   }
 }
 
-export async function getRecipes(category?: string, gfOnly?: boolean) {
+/**
+ * `category` is the course; `cuisine` matches against tags.
+ *
+ * "main" is expressed as "not one of the other courses" rather than
+ * category = 'main', so recipes still carrying the pre-course values
+ * ("dinner", "fancy") are treated as mains until they are re-filed.
+ */
+export async function getRecipes(
+  category?: string,
+  gfOnly?: boolean,
+  cuisine?: string,
+) {
   const sql = await getNeon()
+  // "main" is expressed as "not one of the other courses" so recipes still
+  // carrying the pre-course values ("dinner", "fancy") count as mains until
+  // they are re-filed. Branches are spelled out rather than parameterised —
+  // a boolean flag interpolated into a comparison is the kind of thing that
+  // works until the driver sends it as a string.
+  const mains = category === "main"
   let rows
-  if (category && gfOnly) {
+  if (mains && gfOnly) {
+    rows = await sql`SELECT * FROM recipes WHERE category NOT IN ('salad','side','takeaway') AND is_gluten_free = 1 ORDER BY title ASC`
+  } else if (mains) {
+    rows = await sql`SELECT * FROM recipes WHERE category NOT IN ('salad','side','takeaway') ORDER BY title ASC`
+  } else if (category && gfOnly) {
     rows = await sql`SELECT * FROM recipes WHERE category = ${category} AND is_gluten_free = 1 ORDER BY title ASC`
   } else if (category) {
     rows = await sql`SELECT * FROM recipes WHERE category = ${category} ORDER BY title ASC`
@@ -142,7 +163,13 @@ export async function getRecipes(category?: string, gfOnly?: boolean) {
   } else {
     rows = await sql`SELECT * FROM recipes ORDER BY title ASC`
   }
-  return (rows as RecipeRow[]).map(parseRecipe)
+
+  const parsed = (rows as RecipeRow[]).map(parseRecipe)
+  if (!cuisine) return parsed
+  // Cuisine matching happens here, not in SQL: tags are a JSON string column
+  // and the family writes them in whatever case they like.
+  const want = cuisine.toLowerCase()
+  return parsed.filter((r) => (r.tags ?? []).some((t: string) => t.toLowerCase() === want))
 }
 
 export async function getRecipe(id: number) {

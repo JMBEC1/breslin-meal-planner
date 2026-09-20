@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const category = searchParams.get("category") || undefined
   const gfOnly = searchParams.get("gf") === "true"
-  const recipes = await getRecipes(category, gfOnly)
+  const cuisine = searchParams.get("cuisine") || undefined
+  const recipes = await getRecipes(category, gfOnly, cuisine)
   return NextResponse.json(recipes)
 }
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   const recipe = await insertRecipe({
     title: data.title.trim(),
-    category: data.category || "dinner",
+    category: data.category || "main",
     is_gluten_free: data.is_gluten_free ?? true,
     prep_time_mins: data.prep_time_mins || null,
     cook_time_mins: data.cook_time_mins || null,

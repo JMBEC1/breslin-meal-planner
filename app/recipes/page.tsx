@@ -11,6 +11,7 @@ export default function RecipesPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState<string | null>(null)
+  const [cuisine, setCuisine] = useState<string | null>(null)
   const [gfOnly, setGfOnly] = useState(false)
 
   // Cheat meal modal — quick dinners with no recipe
@@ -39,7 +40,7 @@ export default function RecipesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: cheatName.trim(),
-        category: "dinner",
+        category: "main",
         is_gluten_free: cheatGF,
         servings: parseInt(cheatServings) || 4,
         description: "Quick meal — no recipe needed",
@@ -62,12 +63,13 @@ export default function RecipesPage() {
     setLoading(true)
     const params = new URLSearchParams()
     if (category) params.set("category", category)
+    if (cuisine) params.set("cuisine", cuisine)
     if (gfOnly) params.set("gf", "true")
     const res = await fetch(`/api/recipes?${params}`)
     const data = await res.json()
     setRecipes(data)
     setLoading(false)
-  }, [category, gfOnly])
+  }, [category, cuisine, gfOnly])
 
   useEffect(() => { fetchRecipes() }, [fetchRecipes])
 
@@ -85,6 +87,13 @@ export default function RecipesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-meal-charcoal">Recipes</h1>
         <div className="flex gap-2 flex-wrap">
+          <Link
+            href="/recipes/organise"
+            className="px-3 py-2 rounded-lg bg-meal-card border border-meal-warm text-meal-muted text-sm font-medium hover:text-meal-charcoal hover:bg-meal-cream transition-colors"
+            title="Set courses and cuisines in bulk"
+          >
+            Organise
+          </Link>
           <Link
             href="/recipes/tidy"
             className="px-3 py-2 rounded-lg bg-meal-card border border-meal-warm text-meal-muted text-sm font-medium hover:text-meal-charcoal hover:bg-meal-cream transition-colors"
@@ -128,8 +137,10 @@ export default function RecipesPage() {
       <div className="mb-6">
         <CategoryFilter
           selected={category}
+          cuisine={cuisine}
           gfOnly={gfOnly}
           onCategoryChange={setCategory}
+          onCuisineChange={setCuisine}
           onGfChange={setGfOnly}
         />
       </div>

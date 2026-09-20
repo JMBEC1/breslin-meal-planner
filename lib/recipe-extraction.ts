@@ -19,7 +19,7 @@ export const AISLES = [
 export const ExtractedRecipeSchema = z.object({
   title: z.string(),
   description: z.string().describe("One or two sentences"),
-  category: z.enum(["dinner", "fancy"]),
+  category: z.enum(["main", "salad", "side"]).describe("The course: a main, a salad, or a side dish"),
   is_gluten_free: z.boolean(),
   prep_time_mins: z.number().int().nullable(),
   cook_time_mins: z.number().int().nullable(),

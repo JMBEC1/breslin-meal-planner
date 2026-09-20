@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       .map((t) => t.toLowerCase().trim()),
   )
 
-  const recipes = await getRecipes("dinner")
+  const recipes = await getRecipes("main")
   const ratings = await getAllRatings()
 
   if (recipes.length === 0) {

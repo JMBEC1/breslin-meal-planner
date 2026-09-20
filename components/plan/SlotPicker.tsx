@@ -5,6 +5,7 @@ import Link from "next/link"
 import { DAY_LABELS } from "@/types"
 import type { DayOfWeek, MealType, Recipe } from "@/types"
 import { TAKEAWAY_TYPES } from "@/lib/takeaway-images"
+import { toCategory } from "@/types"
 
 const PROTEIN_GROUPS: Array<{ key: string; label: string; emoji: string; keywords: string[] }> = [
   { key: "beef",    label: "Beef",         emoji: "🥩", keywords: ["beef", "steak", "mince", "burger", "bolognese", "lasagne", "lasagna", "meatloaf", "meatball", "brisket"] },
@@ -40,13 +41,33 @@ export function SlotPicker({
   target: { day: DayOfWeek; meal_type: MealType; addSide?: boolean; bridge?: boolean }
   allRecipes: Recipe[]
   recipes: Record<number, Recipe>
-  onAssign: (day: DayOfWeek, mealType: MealType, recipeId: number | null, text: string | null) => void
+  onAssign: (
+    day: DayOfWeek, mealType: MealType, recipeId: number | null, text: string | null,
+    sideIds?: number[],
+  ) => void
   /** Chosen recipe wasn't in the page's cache yet — hand it over so it renders. */
   onRecipeCached: (recipe: Recipe) => void
   onClose: () => void
 }) {
   const [customText, setCustomText] = useState("")
   const [pickerSearch, setPickerSearch] = useState("")
+  // A dinner can be more than one dish. The main is chosen rather than
+  // assigned on tap, so salads and sides can be added to it before it lands
+  // on the plan as a single slot.
+  const [mainPick, setMainPick] = useState<Recipe | null>(null)
+  const [extras, setExtras] = useState<Recipe[]>([])
+
+  const toggleExtra = (r: Recipe) =>
+    setExtras((prev) => prev.some((x) => x.id === r.id)
+      ? prev.filter((x) => x.id !== r.id)
+      : [...prev, r])
+
+  function commitMeal() {
+    if (!mainPick) return
+    onRecipeCached(mainPick)
+    extras.forEach(onRecipeCached)
+    onAssign(target.day, target.meal_type, mainPick.id, null, extras.map((r) => r.id))
+  }
 
   return (
     <>
@@ -115,12 +136,17 @@ export function SlotPicker({
                   const q = pickerSearch.trim().toLowerCase()
                   const matchSearch = (r: Recipe) => !q || r.title.toLowerCase().includes(q)
 
+                  const isExtra = (r: Recipe) => {
+                    const c = toCategory(r.category)
+                    return c === "salad" || c === "side"
+                  }
                   const filtered = target.addSide
-                    ? allRecipes.filter((r) => r.category === "side" && matchSearch(r))
-                    : allRecipes.filter(matchSearch)
+                    ? allRecipes.filter((r) => isExtra(r) && matchSearch(r))
+                    : allRecipes.filter((r) => !isExtra(r) && matchSearch(r))
                   const others = target.addSide
-                    ? allRecipes.filter((r) => r.category !== "side" && matchSearch(r))
+                    ? allRecipes.filter((r) => !isExtra(r) && matchSearch(r))
                     : []
+                  const extrasList = target.addSide ? [] : allRecipes.filter((r) => isExtra(r) && matchSearch(r))
 
                   if (filtered.length === 0 && others.length === 0) {
                     return q ? (
@@ -202,11 +228,10 @@ export function SlotPicker({
                               {items.map(r => (
                                 <button
                                   key={r.id}
-                                  onClick={() => {
-                                    onAssign(target.day, target.meal_type, r.id, null)
-                                    onRecipeCached(r)
-                                  }}
-                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-meal-cream transition-colors flex items-center gap-2 group"
+                                  onClick={() => setMainPick(mainPick?.id === r.id ? null : r)}
+                                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 group ${
+                                    mainPick?.id === r.id ? "bg-meal-sage/15 ring-1 ring-meal-sage" : "hover:bg-meal-cream"
+                                  }`}
                                 >
                                   <span className="flex-1 text-sm text-meal-charcoal">{r.title}</span>
                                   <span
@@ -230,10 +255,60 @@ export function SlotPicker({
                           </div>
                         )
                       })}
+
+                      {extrasList.length > 0 && (
+                        <div>
+                          <h5 className="text-[10px] font-bold uppercase tracking-wider text-meal-muted mb-1 flex items-center gap-1.5">
+                            <span>🥗</span>
+                            <span>Salads &amp; sides</span>
+                            <span className="text-meal-muted/50">(tap to add alongside)</span>
+                          </h5>
+                          <div className="flex flex-wrap gap-1.5">
+                            {extrasList.map((r) => {
+                              const on = extras.some((x) => x.id === r.id)
+                              return (
+                                <button
+                                  key={r.id}
+                                  onClick={() => toggleExtra(r)}
+                                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                    on ? "bg-meal-plum text-white" : "bg-meal-cream text-meal-charcoal hover:bg-meal-warm"
+                                  }`}
+                                >
+                                  {on ? "✓ " : ""}{r.title}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })()}
               </div>
+
+              {!target.addSide && (mainPick || extras.length > 0) && (
+                <div className="border-t border-meal-cream p-3 bg-meal-card">
+                  <p className="text-xs text-meal-muted mb-2 truncate">
+                    {mainPick ? mainPick.title : <span className="text-meal-coral">Pick a main</span>}
+                    {extras.length > 0 && ` + ${extras.map((r) => r.title).join(" + ")}`}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setMainPick(null); setExtras([]) }}
+                      className="px-3 py-2 rounded-lg bg-meal-warm text-meal-charcoal text-sm font-medium hover:bg-meal-warm/80"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={commitMeal}
+                      disabled={!mainPick}
+                      className="flex-1 py-2 rounded-lg bg-meal-sage text-white text-sm font-medium hover:bg-meal-sageHover disabled:opacity-40"
+                    >
+                      Add {extras.length > 0 ? `${extras.length + 1} dishes` : "to plan"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
     </>
