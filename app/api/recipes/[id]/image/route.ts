@@ -31,8 +31,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const recipe = await getRecipe(id)
   if (!recipe) return NextResponse.json({ error: "No such recipe." }, { status: 404 })
 
-  const form = await req.formData()
-  const file = form.get("file")
+  // A request with no multipart body makes formData() throw; that is a bad
+  // request, not a server fault.
+  const form = await req.formData().catch(() => null)
+  const file = form?.get("file")
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No photo was sent." }, { status: 400 })
   }
