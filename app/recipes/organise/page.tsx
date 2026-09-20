@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { CATEGORY_LABELS, CUISINES, toCategory, hasCuisine } from "@/types"
+import { CATEGORY_LABELS, CUISINES, toCategory, hasTag } from "@/types"
+import { BASES, guessBases } from "@/lib/bases"
 import type { Recipe, RecipeCategory } from "@/types"
 
 /**
@@ -17,7 +18,7 @@ import type { Recipe, RecipeCategory } from "@/types"
  * is obvious there is unsaved work.
  */
 
-type Draft = { category: RecipeCategory; cuisines: string[] }
+type Draft = { category: RecipeCategory; cuisines: string[]; bases: string[] }
 
 const COURSES = Object.entries(CATEGORY_LABELS) as [RecipeCategory, string][]
 
@@ -37,23 +38,26 @@ export default function OrganisePage() {
       setRecipes(data)
       setDrafts(Object.fromEntries(data.map((r) => [r.id, {
         category: toCategory(r.category),
-        cuisines: CUISINES.filter((c) => hasCuisine(r.tags, c)) as string[],
+        cuisines: CUISINES.filter((c) => hasTag(r.tags, c)) as string[],
+        bases: BASES.filter((b) => hasTag(r.tags, b)) as string[],
       }])))
       setLoading(false)
     })()
   }, [])
 
-  /** Everything the family typed themselves stays untouched — only the five
-   *  cuisine tags are managed here. */
-  const nonCuisineTags = (r: Recipe) =>
-    (r.tags ?? []).filter((t) => !CUISINES.some((c) => c.toLowerCase() === t.toLowerCase()))
+  /** Everything the family typed themselves stays untouched — only the cuisine
+   *  and base tags are managed here. */
+  const MANAGED = [...CUISINES, ...BASES].map((t) => t.toLowerCase())
+  const freeTags = (r: Recipe) =>
+    (r.tags ?? []).filter((t) => !MANAGED.includes(t.toLowerCase()))
 
   const dirty = useMemo(() => recipes.filter((r) => {
     const d = drafts[r.id]
     if (!d) return false
-    const wasCuisines = CUISINES.filter((c) => hasCuisine(r.tags, c)) as string[]
+    const same = (a: string[], b: string[]) => a.slice().sort().join("|") === b.slice().sort().join("|")
     return d.category !== toCategory(r.category)
-      || d.cuisines.slice().sort().join("|") !== wasCuisines.slice().sort().join("|")
+      || !same(d.cuisines, CUISINES.filter((c) => hasTag(r.tags, c)) as string[])
+      || !same(d.bases, BASES.filter((b) => hasTag(r.tags, b)) as string[])
   }), [recipes, drafts])
 
   const shown = useMemo(() => {
@@ -71,15 +75,42 @@ export default function OrganisePage() {
     })
   }
 
-  function toggleCuisineOn(ids: number[], cuisine: string, add: boolean) {
+  function toggleTagOn(ids: number[], field: "cuisines" | "bases", tag: string, add: boolean) {
     setDrafts((prev) => {
       const next = { ...prev }
       for (const id of ids) {
         if (!next[id]) continue
-        const has = next[id].cuisines.includes(cuisine)
-        if (add && !has) next[id] = { ...next[id], cuisines: [...next[id].cuisines, cuisine] }
-        if (!add && has) next[id] = { ...next[id], cuisines: next[id].cuisines.filter((c) => c !== cuisine) }
+        const list = next[id][field]
+        const has = list.includes(tag)
+        if (add && !has) next[id] = { ...next[id], [field]: [...list, tag] }
+        if (!add && has) next[id] = { ...next[id], [field]: list.filter((x) => x !== tag) }
       }
+      return next
+    })
+  }
+
+  /**
+   * Fill in "made of" from the title and ingredients.
+   *
+   * The point of the bulk screen is not to type 59 recipes in by hand. This
+   * gets most of them right in one tap — it reads the title first and only
+   * falls back to ingredients — and the wrong ones are then a few corrections
+   * rather than a blank slate. Applies to the ticked rows, or all of them if
+   * nothing is ticked.
+   */
+  function suggestBases() {
+    const ids = selected.size ? [...selected] : recipes.map((r) => r.id)
+    const byId = new Map(recipes.map((r) => [r.id, r]))
+    setDrafts((prev) => {
+      const next = { ...prev }
+      let filled = 0
+      for (const id of ids) {
+        const r = byId.get(id)
+        if (!r || !next[id]) continue
+        const guessed = guessBases(r) as string[]
+        if (guessed.length) { next[id] = { ...next[id], bases: guessed }; filled++ }
+      }
+      setNote(`Suggested "made of" for ${filled} of ${ids.length}. Check them, then Save.`)
       return next
     })
   }
@@ -95,7 +126,7 @@ export default function OrganisePage() {
         updates: dirty.map((r) => ({
           id: r.id,
           category: drafts[r.id].category,
-          tags: [...nonCuisineTags(r), ...drafts[r.id].cuisines],
+          tags: [...freeTags(r), ...drafts[r.id].cuisines, ...drafts[r.id].bases],
         })),
       }),
     }).catch(() => null)
@@ -165,17 +196,41 @@ export default function OrganisePage() {
             <span className="text-[10px] font-bold uppercase tracking-wider text-meal-muted w-14">Cuisine</span>
             {CUISINES.map((c) => (
               <span key={c} className="inline-flex rounded-full overflow-hidden border border-meal-warm">
-                <button onClick={() => toggleCuisineOn(targets(), c, true)}
+                <button onClick={() => toggleTagOn(targets(), "cuisines", c, true)}
                   className="px-2.5 py-1 bg-meal-warm text-meal-charcoal text-xs font-medium hover:bg-meal-sage hover:text-white">
                   {c}
                 </button>
-                <button onClick={() => toggleCuisineOn(targets(), c, false)} title={`Remove ${c}`}
+                <button onClick={() => toggleTagOn(targets(), "cuisines", c, false)} title={`Remove ${c}`}
                   className="px-1.5 py-1 bg-meal-warm text-meal-muted text-xs hover:bg-meal-coral hover:text-white border-l border-meal-cream">
                   ×
                 </button>
               </span>
             ))}
           </div>
+          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-meal-muted w-14">Made of</span>
+            {BASES.map((b) => (
+              <span key={b} className="inline-flex rounded-full overflow-hidden border border-meal-warm">
+                <button onClick={() => toggleTagOn(targets(), "bases", b, true)}
+                  className="px-2.5 py-1 bg-meal-warm text-meal-charcoal text-xs font-medium hover:bg-meal-sage hover:text-white">
+                  {b}
+                </button>
+                <button onClick={() => toggleTagOn(targets(), "bases", b, false)} title={`Remove ${b}`}
+                  className="px-1.5 py-1 bg-meal-warm text-meal-muted text-xs hover:bg-meal-coral hover:text-white border-l border-meal-cream">
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="pt-1 border-t border-meal-cream">
+          <button
+            onClick={suggestBases}
+            className="text-xs font-medium text-meal-sage hover:underline"
+          >
+            Suggest &ldquo;made of&rdquo; from ingredients {selected.size ? `(${selected.size} ticked)` : "(all)"}
+          </button>
         </div>
       </div>
 
@@ -213,9 +268,20 @@ export default function OrganisePage() {
                 ))}
               </div>
 
+              <div className="hidden lg:flex gap-1 shrink-0">
+                {BASES.map((b) => (
+                  <button key={b} onClick={() => toggleTagOn([r.id], "bases", b, !d.bases.includes(b))}
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                      d.bases.includes(b) ? "bg-meal-sage text-white" : "bg-meal-cream text-meal-muted hover:bg-meal-warm"
+                    }`}>
+                    {b.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+
               <div className="hidden sm:flex gap-1 shrink-0">
                 {CUISINES.map((c) => (
-                  <button key={c} onClick={() => toggleCuisineOn([r.id], c, !d.cuisines.includes(c))}
+                  <button key={c} onClick={() => toggleTagOn([r.id], "cuisines", c, !d.cuisines.includes(c))}
                     className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
                       d.cuisines.includes(c) ? "bg-meal-coral text-white" : "bg-meal-cream text-meal-muted hover:bg-meal-warm"
                     }`}>

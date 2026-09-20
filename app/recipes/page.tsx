@@ -12,6 +12,7 @@ export default function RecipesPage() {
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState<string | null>(null)
   const [cuisine, setCuisine] = useState<string | null>(null)
+  const [base, setBase] = useState<string | null>(null)
   const [gfOnly, setGfOnly] = useState(false)
 
   // Cheat meal modal — quick dinners with no recipe
@@ -64,12 +65,13 @@ export default function RecipesPage() {
     const params = new URLSearchParams()
     if (category) params.set("category", category)
     if (cuisine) params.set("cuisine", cuisine)
+    if (base) params.set("base", base)
     if (gfOnly) params.set("gf", "true")
     const res = await fetch(`/api/recipes?${params}`)
     const data = await res.json()
     setRecipes(data)
     setLoading(false)
-  }, [category, cuisine, gfOnly])
+  }, [category, cuisine, base, gfOnly])
 
   useEffect(() => { fetchRecipes() }, [fetchRecipes])
 
@@ -138,9 +140,11 @@ export default function RecipesPage() {
         <CategoryFilter
           selected={category}
           cuisine={cuisine}
+          base={base}
           gfOnly={gfOnly}
           onCategoryChange={setCategory}
           onCuisineChange={setCuisine}
+          onBaseChange={setBase}
           onGfChange={setGfOnly}
         />
       </div>

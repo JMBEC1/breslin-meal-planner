@@ -41,12 +41,13 @@ export const AISLE_LABELS: Record<AisleCategory, string> = {
  * "Sides" couldn't find it. Cuisine lives in `tags` (see CUISINES below), so
  * the two combine.
  */
-export type RecipeCategory = "main" | "salad" | "side" | "takeaway"
+export type RecipeCategory = "main" | "salad" | "side" | "tapas" | "takeaway"
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
   "main": "Mains",
   "salad": "Salads",
   "side": "Sides",
+  "tapas": "Tapas",
   "takeaway": "Takeaway",
 }
 
@@ -54,6 +55,7 @@ export const CATEGORY_COLOURS: Record<RecipeCategory, string> = {
   "main": "bg-meal-coral",
   "salad": "bg-meal-sage",
   "side": "bg-meal-plum",
+  "tapas": "bg-meal-amber",
   "takeaway": "bg-meal-muted",
 }
 
@@ -63,7 +65,7 @@ export const CATEGORY_COLOURS: Record<RecipeCategory, string> = {
  * having to remember to say so, and the pre-course values ("dinner", "fancy")
  * still behave correctly until they are re-filed.
  */
-export const NON_MAIN_CATEGORIES: RecipeCategory[] = ["salad", "side", "takeaway"]
+export const NON_MAIN_CATEGORIES: RecipeCategory[] = ["salad", "side", "tapas", "takeaway"]
 
 export function toCategory(raw: string | null | undefined): RecipeCategory {
   return (NON_MAIN_CATEGORIES as string[]).includes(raw ?? "")
@@ -79,10 +81,14 @@ export function toCategory(raw: string | null | undefined): RecipeCategory {
 export const CUISINES = ["Mexican", "Asian", "Indian", "Spanish", "Western"] as const
 export type Cuisine = (typeof CUISINES)[number]
 
-export function hasCuisine(tags: string[] | null | undefined, cuisine: string): boolean {
-  const want = cuisine.toLowerCase()
+/** Cuisines and bases both live in tags, so one case-insensitive matcher does both. */
+export function hasTag(tags: string[] | null | undefined, wanted: string): boolean {
+  const want = wanted.toLowerCase()
   return (tags ?? []).some((t) => t.toLowerCase() === want)
 }
+
+/** @deprecated use hasTag */
+export const hasCuisine = hasTag
 
 export interface Ingredient {
   name: string

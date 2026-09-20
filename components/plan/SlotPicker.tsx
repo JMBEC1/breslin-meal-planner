@@ -5,27 +5,28 @@ import Link from "next/link"
 import { DAY_LABELS } from "@/types"
 import type { DayOfWeek, MealType, Recipe } from "@/types"
 import { TAKEAWAY_TYPES } from "@/lib/takeaway-images"
-import { toCategory } from "@/types"
+import { toCategory, hasTag } from "@/types"
+import { BASES, guessBases } from "@/lib/bases"
 
-const PROTEIN_GROUPS: Array<{ key: string; label: string; emoji: string; keywords: string[] }> = [
-  { key: "beef",    label: "Beef",         emoji: "🥩", keywords: ["beef", "steak", "mince", "burger", "bolognese", "lasagne", "lasagna", "meatloaf", "meatball", "brisket"] },
-  { key: "chicken", label: "Chicken",      emoji: "🍗", keywords: ["chicken", "poultry"] },
-  { key: "pork",    label: "Pork",         emoji: "🥓", keywords: ["pork", "bacon", "ham", "sausage", "chorizo", "prosciutto"] },
-  { key: "lamb",    label: "Lamb",         emoji: "🐑", keywords: ["lamb"] },
-  { key: "duck",    label: "Duck & Game",  emoji: "🦆", keywords: ["duck", "venison", "rabbit", "quail", "pheasant"] },
-  { key: "turkey",  label: "Turkey",       emoji: "🦃", keywords: ["turkey"] },
-  { key: "fish",    label: "Fish & Seafood", emoji: "🐟", keywords: ["fish", "salmon", "tuna", "prawn", "shrimp", "cod", "trout", "barramundi", "snapper", "calamari", "squid", "seafood", "mussel", "scallop", "anchov"] },
-  { key: "veggie",  label: "Veggie",       emoji: "🥗", keywords: ["vegetarian", "vegan", "veggie", "tofu", "halloumi", "paneer", "lentil", "chickpea", "mozzarella", "feta", "ricotta", "egg "] },
-]
 
-function getProteinGroup(r: { title?: string; ingredients?: Array<{ name?: string }> }): string {
-  const title = (r.title ?? "").toLowerCase()
-  const ingredientText = (r.ingredients ?? []).map(i => (i.name ?? "").toLowerCase()).join(" ")
-  const haystack = `${title} ${ingredientText}`
-  for (const g of PROTEIN_GROUPS) {
-    if (g.keywords.some(k => haystack.includes(k))) return g.key
-  }
-  return "other"
+/** Emoji only — the labels come from BASES so there is one list, not two. */
+const BASE_EMOJI: Record<string, string> = {
+  Chicken: "🍗", Beef: "🥩", Pork: "🥓", Lamb: "🐑",
+  Fish: "🐟", Veggie: "🥬", Pasta: "🍝", Rice: "🍚",
+}
+
+/**
+ * What to file a recipe under in the picker.
+ *
+ * Prefers what the family actually set on the Organise screen, and only guesses
+ * when nothing is set. The guess used to live here and was wrong often enough
+ * to matter — bare "mince" matched "minced garlic", so Butter Chicken was filed
+ * under beef.
+ */
+function baseOf(r: Recipe): string {
+  const stored = BASES.filter((b) => hasTag(r.tags, b))
+  const bases = stored.length ? stored : guessBases(r)
+  return bases[0] ?? "Other"
 }
 
 /**
@@ -202,15 +203,14 @@ export function SlotPicker({
                     )
                   }
 
-                  // Main picker: group recipes by inferred protein, render section per group.
+                  // Mains, grouped by what they are made of.
                   const grouped: Record<string, Recipe[]> = {}
                   for (const r of filtered) {
-                    const key = getProteinGroup(r as { title: string; ingredients?: Array<{ name?: string }> })
-                    ;(grouped[key] ??= []).push(r)
+                    ;(grouped[baseOf(r)] ??= []).push(r)
                   }
                   const orderedGroups: Array<{ key: string; label: string; emoji: string }> = [
-                    ...PROTEIN_GROUPS.map(g => ({ key: g.key, label: g.label, emoji: g.emoji })),
-                    { key: "other", label: "Other", emoji: "🍽️" },
+                    ...BASES.map((b) => ({ key: b, label: b, emoji: BASE_EMOJI[b] ?? "🍽️" })),
+                    { key: "Other", label: "Other", emoji: "🍽️" },
                   ]
                   return (
                     <div className="space-y-3">

@@ -140,7 +140,8 @@ function parseRecipe(row: RecipeRow) {
 export async function getRecipes(
   category?: string,
   gfOnly?: boolean,
-  cuisine?: string,
+  /** Cuisines and bases, both stored as tags. A recipe must carry all of them. */
+  tagFilters?: string[],
 ) {
   const sql = await getNeon()
   // "main" is expressed as "not one of the other courses" so recipes still
@@ -165,11 +166,14 @@ export async function getRecipes(
   }
 
   const parsed = (rows as RecipeRow[]).map(parseRecipe)
-  if (!cuisine) return parsed
-  // Cuisine matching happens here, not in SQL: tags are a JSON string column
-  // and the family writes them in whatever case they like.
-  const want = cuisine.toLowerCase()
-  return parsed.filter((r) => (r.tags ?? []).some((t: string) => t.toLowerCase() === want))
+  const wanted = (tagFilters ?? []).filter(Boolean).map((t) => t.toLowerCase())
+  if (!wanted.length) return parsed
+  // Tag matching happens here, not in SQL: tags are a JSON string column and
+  // the family writes them in whatever case they like.
+  return parsed.filter((r) => {
+    const have = (r.tags ?? []).map((t: string) => t.toLowerCase())
+    return wanted.every((w) => have.includes(w))
+  })
 }
 
 export async function getRecipe(id: number) {

@@ -9,8 +9,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const category = searchParams.get("category") || undefined
   const gfOnly = searchParams.get("gf") === "true"
-  const cuisine = searchParams.get("cuisine") || undefined
-  const recipes = await getRecipes(category, gfOnly, cuisine)
+  const tagFilters = [searchParams.get("cuisine"), searchParams.get("base")]
+    .filter((t): t is string => Boolean(t))
+  const recipes = await getRecipes(category, gfOnly, tagFilters)
   return NextResponse.json(recipes)
 }
 
