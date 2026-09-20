@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient } from "@/lib/anthropic"
+import { getAnthropicClient, aiErrorMessage } from "@/lib/anthropic"
 import { ExtractedRecipeSchema, RECIPE_EXTRACTION_PROMPT } from "@/lib/recipe-extraction"
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod"
 
@@ -127,7 +127,12 @@ export async function POST(req: NextRequest) {
       }
     }
     return NextResponse.json(recipe)
-  } catch {
-    return NextResponse.json({ error: "Could not parse recipe from that page — try the 'From Image' tab instead" }, { status: 422 })
+  } catch (err) {
+    const message = aiErrorMessage(
+      err,
+      "Could not parse recipe from that page — try the 'From Image' tab instead.",
+      "import-url",
+    )
+    return NextResponse.json({ error: message }, { status: 422 })
   }
 }

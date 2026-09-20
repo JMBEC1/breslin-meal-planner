@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnthropicClient } from "@/lib/anthropic"
+import { getAnthropicClient, aiErrorMessage } from "@/lib/anthropic"
 import { ExtractedRecipeSchema, RECIPE_EXTRACTION_PROMPT } from "@/lib/recipe-extraction"
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod"
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(message.parsed_output)
   } catch (err) {
-    console.error("[import-image] failed:", err)
-    return NextResponse.json({ error: "Could not extract recipe from that image" }, { status: 422 })
+    const message = aiErrorMessage(err, "Could not extract recipe from that image.", "import-image")
+    return NextResponse.json({ error: message }, { status: 422 })
   }
 }
