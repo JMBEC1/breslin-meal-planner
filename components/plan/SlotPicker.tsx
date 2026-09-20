@@ -5,7 +5,7 @@ import Link from "next/link"
 import { DAY_LABELS } from "@/types"
 import type { DayOfWeek, MealType, Recipe } from "@/types"
 import { TAKEAWAY_TYPES } from "@/lib/takeaway-images"
-import { toCategory, hasTag } from "@/types"
+import { toCategory, hasTag, CUISINES } from "@/types"
 import { BASES, guessBases } from "@/lib/bases"
 
 
@@ -55,6 +55,11 @@ export function SlotPicker({
   // A dinner can be more than one dish. The main is chosen rather than
   // assigned on tap, so salads and sides can be added to it before it lands
   // on the plan as a single slot.
+  // Same three axes as the Recipes page, so picking a dinner doesn't mean
+  // scrolling the whole library looking for something Mexican.
+  const [fCuisine, setFCuisine] = useState<string | null>(null)
+  const [fBase, setFBase] = useState<string | null>(null)
+  const [fGf, setFGf] = useState(false)
   const [mainPick, setMainPick] = useState<Recipe | null>(null)
   const [extras, setExtras] = useState<Recipe[]>([])
 
@@ -133,9 +138,55 @@ export function SlotPicker({
                   className="w-full mb-3 px-3 py-2 rounded-lg bg-meal-cream border border-meal-warm focus:outline-none focus:ring-2 focus:ring-meal-sage/30 text-sm"
                 />
 
+                {/* Narrow the list the same way the Recipes page does. */}
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {CUISINES.map((c) => (
+                    <button key={c} onClick={() => setFCuisine(fCuisine === c ? null : c)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                        fCuisine === c ? "bg-meal-coral text-white" : "bg-meal-cream text-meal-muted hover:bg-meal-warm"
+                      }`}>
+                      {c}
+                    </button>
+                  ))}
+                  <span className="w-px h-4 bg-meal-warm mx-0.5 self-center" />
+                  {BASES.map((b) => (
+                    <button key={b} onClick={() => setFBase(fBase === b ? null : b)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                        fBase === b ? "bg-meal-sage text-white" : "bg-meal-cream text-meal-muted hover:bg-meal-warm"
+                      }`}>
+                      {b}
+                    </button>
+                  ))}
+                  <span className="w-px h-4 bg-meal-warm mx-0.5 self-center" />
+                  <button onClick={() => setFGf(!fGf)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                      fGf ? "bg-meal-sage text-white" : "bg-meal-cream text-meal-muted hover:bg-meal-warm"
+                    }`}>
+                    GF
+                  </button>
+                  {(fCuisine || fBase || fGf) && (
+                    <button onClick={() => { setFCuisine(null); setFBase(null); setFGf(false) }}
+                      className="px-2 py-0.5 text-[10px] text-meal-muted hover:text-meal-charcoal underline underline-offset-2">
+                      clear
+                    </button>
+                  )}
+                </div>
+
                 {(() => {
                   const q = pickerSearch.trim().toLowerCase()
-                  const matchSearch = (r: Recipe) => !q || r.title.toLowerCase().includes(q)
+                  // A base match falls back to the guess, so filtering works
+                  // before anything has been filed on the Organise screen.
+                  const matchSearch = (r: Recipe) => {
+                    if (q && !r.title.toLowerCase().includes(q)) return false
+                    if (fGf && !r.is_gluten_free) return false
+                    if (fCuisine && !hasTag(r.tags, fCuisine)) return false
+                    if (fBase) {
+                      const stored = BASES.filter((b) => hasTag(r.tags, b)) as string[]
+                      const bases = stored.length ? stored : (guessBases(r) as string[])
+                      if (!bases.includes(fBase)) return false
+                    }
+                    return true
+                  }
 
                   const isExtra = (r: Recipe) => {
                     const c = toCategory(r.category)
